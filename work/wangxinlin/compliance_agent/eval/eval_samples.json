@@ -1,0 +1,453 @@
+[
+  {
+    "sample_id": "EVAL_N001",
+    "category": "normal",
+    "category_label": "正常样本",
+    "description": "耕地为主、混合图斑，触发耕地占比关注+基本农田疑似+混合用地冲突",
+    "tags": ["耕地高占比", "基本农田疑似", "混合图斑", "水体存在"],
+    "input": {
+      "parcel_id": "P20240101",
+      "location": "浙江省杭州市余杭区",
+      "total_area_m2": 15000,
+      "land_types": [
+        {"type": "耕地", "area_m2": 10000, "ratio": 0.667, "confidence": 0.92},
+        {"type": "建设用地", "area_m2": 3000, "ratio": 0.2, "confidence": 0.85},
+        {"type": "水体", "area_m2": 2000, "ratio": 0.133, "confidence": 0.78}
+      ],
+      "low_confidence_areas": ["图斑北部阴影区域"],
+      "dominant_type": "耕地",
+      "is_mixed": true
+    },
+    "expected_rules": ["R001", "R002", "R004", "R006"],
+    "expected_risk_level": "重点关注",
+    "expected_manual_review": true
+  },
+  {
+    "sample_id": "EVAL_N002",
+    "category": "normal",
+    "category_label": "正常样本",
+    "description": "建设用地为主、混合图斑，触发建设用地占比关注+低置信度复核+混合用地冲突",
+    "tags": ["建设用地高占比", "低置信耕地", "混合图斑"],
+    "input": {
+      "parcel_id": "P20240102",
+      "location": "浙江省杭州市拱墅区",
+      "total_area_m2": 8000,
+      "land_types": [
+        {"type": "建设用地", "area_m2": 5000, "ratio": 0.625, "confidence": 0.91},
+        {"type": "耕地", "area_m2": 2000, "ratio": 0.25, "confidence": 0.65},
+        {"type": "林地", "area_m2": 1000, "ratio": 0.125, "confidence": 0.88}
+      ],
+      "low_confidence_areas": ["图斑东侧边缘"],
+      "dominant_type": "建设用地",
+      "is_mixed": true
+    },
+    "expected_rules": ["R003", "R005", "R006"],
+    "expected_risk_level": "建议复核",
+    "expected_manual_review": true
+  },
+  {
+    "sample_id": "EVAL_N003",
+    "category": "normal",
+    "category_label": "正常样本",
+    "description": "水体为主、低置信度，触发生态关注+低置信复核",
+    "tags": ["水体高占比", "低置信度", "单类型图斑"],
+    "input": {
+      "parcel_id": "P20240103",
+      "location": "浙江省杭州市西湖区",
+      "total_area_m2": 5000,
+      "land_types": [
+        {"type": "水体", "area_m2": 3500, "ratio": 0.7, "confidence": 0.55},
+        {"type": "草地", "area_m2": 1500, "ratio": 0.3, "confidence": 0.82}
+      ],
+      "low_confidence_areas": ["水体边界区域", "图斑整体影像质量一般"],
+      "dominant_type": "水体",
+      "is_mixed": false
+    },
+    "expected_rules": ["R004", "R005"],
+    "expected_risk_level": "建议复核",
+    "expected_manual_review": true
+  },
+  {
+    "sample_id": "EVAL_N004",
+    "category": "normal",
+    "category_label": "正常样本",
+    "description": "纯林地、无任何合规触发，应输出无特殊关注",
+    "tags": ["无合规触发", "单类型", "高置信度"],
+    "input": {
+      "parcel_id": "P20240401",
+      "location": "浙江省杭州市临安区",
+      "total_area_m2": 20000,
+      "land_types": [
+        {"type": "林地", "area_m2": 20000, "ratio": 1.0, "confidence": 0.95}
+      ],
+      "low_confidence_areas": [],
+      "dominant_type": "林地",
+      "is_mixed": false
+    },
+    "expected_rules": [],
+    "expected_risk_level": "无特殊关注",
+    "expected_manual_review": false
+  },
+  {
+    "sample_id": "EVAL_N005",
+    "category": "normal",
+    "category_label": "正常样本",
+    "description": "草地为主小面积图斑，无合规触发",
+    "tags": ["草地", "小面积", "无合规触发"],
+    "input": {
+      "parcel_id": "P20240402",
+      "location": "浙江省杭州市富阳区",
+      "total_area_m2": 3000,
+      "land_types": [
+        {"type": "草地", "area_m2": 2000, "ratio": 0.667, "confidence": 0.90},
+        {"type": "林地", "area_m2": 1000, "ratio": 0.333, "confidence": 0.87}
+      ],
+      "low_confidence_areas": [],
+      "dominant_type": "草地",
+      "is_mixed": false
+    },
+    "expected_rules": [],
+    "expected_risk_level": "无特殊关注",
+    "expected_manual_review": false
+  },
+
+  {
+    "sample_id": "EVAL_B001",
+    "category": "boundary",
+    "category_label": "边界样本",
+    "description": "耕地占比恰好等于50%阈值，不应触发R001（严格大于）",
+    "tags": ["阈值边界", "耕地占比=50%"],
+    "input": {
+      "parcel_id": "P20240501",
+      "location": "浙江省杭州市萧山区",
+      "total_area_m2": 10000,
+      "land_types": [
+        {"type": "耕地", "area_m2": 5000, "ratio": 0.5, "confidence": 0.90},
+        {"type": "林地", "area_m2": 5000, "ratio": 0.5, "confidence": 0.88}
+      ],
+      "low_confidence_areas": [],
+      "dominant_type": "耕地",
+      "is_mixed": false
+    },
+    "expected_rules": [],
+    "expected_risk_level": "无特殊关注",
+    "expected_manual_review": false
+  },
+  {
+    "sample_id": "EVAL_B002",
+    "category": "boundary",
+    "category_label": "边界样本",
+    "description": "耕地面积恰好等于6667m²阈值，不应触发R002（严格大于）",
+    "tags": ["阈值边界", "耕地面积=6667m²"],
+    "input": {
+      "parcel_id": "P20240502",
+      "location": "浙江省杭州市滨江区",
+      "total_area_m2": 10000,
+      "land_types": [
+        {"type": "耕地", "area_m2": 6667, "ratio": 0.667, "confidence": 0.91},
+        {"type": "草地", "area_m2": 3333, "ratio": 0.333, "confidence": 0.85}
+      ],
+      "low_confidence_areas": [],
+      "dominant_type": "耕地",
+      "is_mixed": false
+    },
+    "expected_rules": ["R001"],
+    "expected_risk_level": "一般关注",
+    "expected_manual_review": false
+  },
+  {
+    "sample_id": "EVAL_B003",
+    "category": "boundary",
+    "category_label": "边界样本",
+    "description": "建设用地占比恰好等于30%阈值，不应触发R003",
+    "tags": ["阈值边界", "建设用地占比=30%"],
+    "input": {
+      "parcel_id": "P20240503",
+      "location": "浙江省杭州市钱塘区",
+      "total_area_m2": 10000,
+      "land_types": [
+        {"type": "建设用地", "area_m2": 3000, "ratio": 0.3, "confidence": 0.90},
+        {"type": "林地", "area_m2": 7000, "ratio": 0.7, "confidence": 0.92}
+      ],
+      "low_confidence_areas": [],
+      "dominant_type": "林地",
+      "is_mixed": false
+    },
+    "expected_rules": [],
+    "expected_risk_level": "无特殊关注",
+    "expected_manual_review": false
+  },
+  {
+    "sample_id": "EVAL_B004",
+    "category": "boundary",
+    "category_label": "边界样本",
+    "description": "耕地+建设用地混合但is_mixed=false，R006不应触发；但建设用地占比0.333>0.3触发R003",
+    "tags": ["混合标志边界", "is_mixed=false", "建设用地占比超阈值"],
+    "input": {
+      "parcel_id": "P20240504",
+      "location": "浙江省杭州市上城区",
+      "total_area_m2": 12000,
+      "land_types": [
+        {"type": "耕地", "area_m2": 6000, "ratio": 0.5, "confidence": 0.88},
+        {"type": "建设用地", "area_m2": 4000, "ratio": 0.333, "confidence": 0.90},
+        {"type": "林地", "area_m2": 2000, "ratio": 0.167, "confidence": 0.92}
+      ],
+      "low_confidence_areas": [],
+      "dominant_type": "耕地",
+      "is_mixed": false
+    },
+    "expected_rules": ["R003"],
+    "expected_risk_level": "一般关注",
+    "expected_manual_review": false
+  },
+
+  {
+    "sample_id": "EVAL_A001",
+    "category": "abnormal",
+    "category_label": "异常样本",
+    "description": "land_types为空列表，规则引擎应无崩溃、无触发",
+    "tags": ["空land_types", "异常输入"],
+    "input": {
+      "parcel_id": "P20240601",
+      "location": "未知",
+      "total_area_m2": 5000,
+      "land_types": [],
+      "low_confidence_areas": [],
+      "dominant_type": "未知",
+      "is_mixed": false
+    },
+    "expected_rules": [],
+    "expected_risk_level": "无特殊关注",
+    "expected_manual_review": false
+  },
+  {
+    "sample_id": "EVAL_A002",
+    "category": "abnormal",
+    "category_label": "异常样本",
+    "description": "confidence值全为0，应触发R005低置信度复核",
+    "tags": ["全零置信度", "异常值"],
+    "input": {
+      "parcel_id": "P20240602",
+      "location": "浙江省杭州市桐庐县",
+      "total_area_m2": 8000,
+      "land_types": [
+        {"type": "耕地", "area_m2": 5000, "ratio": 0.625, "confidence": 0.0},
+        {"type": "林地", "area_m2": 3000, "ratio": 0.375, "confidence": 0.0}
+      ],
+      "low_confidence_areas": ["图斑整体影像不可用"],
+      "dominant_type": "耕地",
+      "is_mixed": false
+    },
+    "expected_rules": ["R001", "R005"],
+    "expected_risk_level": "建议复核",
+    "expected_manual_review": true
+  },
+  {
+    "sample_id": "EVAL_A003",
+    "category": "abnormal",
+    "category_label": "异常样本",
+    "description": "面积和ratio不匹配（area之和远大于total_area），耕地area=99999>6667触发R002，规则应仍可基于ratio和area触发",
+    "tags": ["数据不一致", "面积与比例矛盾"],
+    "input": {
+      "parcel_id": "P20240603",
+      "location": "浙江省杭州市建德市",
+      "total_area_m2": 5000,
+      "land_types": [
+        {"type": "耕地", "area_m2": 99999, "ratio": 0.6, "confidence": 0.90},
+        {"type": "建设用地", "area_m2": 88888, "ratio": 0.4, "confidence": 0.85}
+      ],
+      "low_confidence_areas": [],
+      "dominant_type": "耕地",
+      "is_mixed": true
+    },
+    "expected_rules": ["R001", "R002", "R003", "R006"],
+    "expected_risk_level": "重点关注",
+    "expected_manual_review": true
+  },
+  {
+    "sample_id": "EVAL_A004",
+    "category": "abnormal",
+    "category_label": "异常样本",
+    "description": "ratio超过1.0（非法值），规则引擎应不崩溃",
+    "tags": ["ratio超范围", "异常值"],
+    "input": {
+      "parcel_id": "P20240604",
+      "location": "浙江省杭州市淳安县",
+      "total_area_m2": 10000,
+      "land_types": [
+        {"type": "耕地", "area_m2": 12000, "ratio": 1.2, "confidence": 0.90},
+        {"type": "建设用地", "area_m2": 5000, "ratio": 0.5, "confidence": 0.85}
+      ],
+      "low_confidence_areas": [],
+      "dominant_type": "耕地",
+      "is_mixed": true
+    },
+    "expected_rules": ["R001", "R002", "R003", "R006"],
+    "expected_risk_level": "重点关注",
+    "expected_manual_review": true
+  },
+
+  {
+    "sample_id": "EVAL_C001",
+    "category": "adversarial",
+    "category_label": "对抗样本",
+    "description": "耕地+建设用地混合但is_mixed=false，且有低置信耕地——模拟上游识别模块把混合图斑误标为非混合；建设用地占比0.45>0.3触发R003",
+    "tags": ["混合标志冲突", "低置信混合", "对抗"],
+    "input": {
+      "parcel_id": "P20240701",
+      "location": "浙江省杭州市临平区",
+      "total_area_m2": 10000,
+      "land_types": [
+        {"type": "耕地", "area_m2": 5500, "ratio": 0.55, "confidence": 0.62},
+        {"type": "建设用地", "area_m2": 4500, "ratio": 0.45, "confidence": 0.70}
+      ],
+      "low_confidence_areas": ["图斑中部耕地/建设边界模糊"],
+      "dominant_type": "耕地",
+      "is_mixed": false
+    },
+    "expected_rules": ["R001", "R003", "R005"],
+    "expected_risk_level": "建议复核",
+    "expected_manual_review": true,
+    "adversarial_note": "is_mixed=false但实际混合，R006不会触发——这是对抗点，系统会漏掉用地冲突提示"
+  },
+  {
+    "sample_id": "EVAL_C002",
+    "category": "adversarial",
+    "category_label": "对抗样本",
+    "description": "多个地类置信度均低于0.7，R005只应触发一次（当前逻辑只报第一个低置信类型）",
+    "tags": ["多低置信", "规则覆盖对抗", "对抗"],
+    "input": {
+      "parcel_id": "P20240702",
+      "location": "浙江省杭州市拱墅区",
+      "total_area_m2": 6000,
+      "land_types": [
+        {"type": "耕地", "area_m2": 2500, "ratio": 0.417, "confidence": 0.55},
+        {"type": "水体", "area_m2": 2000, "ratio": 0.333, "confidence": 0.48},
+        {"type": "建设用地", "area_m2": 1500, "ratio": 0.25, "confidence": 0.60}
+      ],
+      "low_confidence_areas": ["整体影像质量差"],
+      "dominant_type": "耕地",
+      "is_mixed": true
+    },
+    "expected_rules": ["R004", "R005", "R006"],
+    "expected_risk_level": "建议复核",
+    "expected_manual_review": true,
+    "adversarial_note": "R005当前只报第一个低置信地类，实际有3个低置信——这是已知局限"
+  },
+  {
+    "sample_id": "EVAL_C003",
+    "category": "adversarial",
+    "category_label": "对抗样本",
+    "description": "水体面积很小(1m²)但存在，按当前阈值(WATER_EXIST_THRESHOLD=0)会触发R004",
+    "tags": ["极小面积水体", "伪关注", "对抗"],
+    "input": {
+      "parcel_id": "P20240703",
+      "location": "浙江省杭州市余杭区",
+      "total_area_m2": 50000,
+      "land_types": [
+        {"type": "林地", "area_m2": 49999, "ratio": 0.99998, "confidence": 0.95},
+        {"type": "水体", "area_m2": 1, "ratio": 0.00002, "confidence": 0.90}
+      ],
+      "low_confidence_areas": [],
+      "dominant_type": "林地",
+      "is_mixed": false
+    },
+    "expected_rules": ["R004"],
+    "expected_risk_level": "一般关注",
+    "expected_manual_review": false,
+    "adversarial_note": "1m²水体触发生态关注在实际业务中可能是误报——阈值可能需要上调"
+  },
+  {
+    "sample_id": "EVAL_C004",
+    "category": "adversarial",
+    "category_label": "对抗样本",
+    "description": "耕地占比49.9%刚好不触发R001，但耕地面积8000m²超过基本农田阈值触发R002",
+    "tags": ["规则漏判对抗", "耕地占比边界", "对抗"],
+    "input": {
+      "parcel_id": "P20240704",
+      "location": "浙江省杭州市富阳区",
+      "total_area_m2": 16000,
+      "land_types": [
+        {"type": "耕地", "area_m2": 8000, "ratio": 0.499, "confidence": 0.91},
+        {"type": "草地", "area_m2": 8001, "ratio": 0.501, "confidence": 0.88}
+      ],
+      "low_confidence_areas": [],
+      "dominant_type": "草地",
+      "is_mixed": false
+    },
+    "expected_rules": ["R002"],
+    "expected_risk_level": "重点关注",
+    "expected_manual_review": true,
+    "adversarial_note": "耕地占比不触发但面积触发——验证面积阈值独立于占比阈值工作"
+  },
+
+  {
+    "sample_id": "EVAL_R001",
+    "category": "robustness",
+    "category_label": "鲁棒性样本",
+    "description": "与EVAL_N001相同的业务含义，但land_types顺序调换",
+    "tags": ["顺序调换", "鲁棒性"],
+    "input": {
+      "parcel_id": "P20240101R",
+      "location": "浙江省杭州市余杭区",
+      "total_area_m2": 15000,
+      "land_types": [
+        {"type": "水体", "area_m2": 2000, "ratio": 0.133, "confidence": 0.78},
+        {"type": "建设用地", "area_m2": 3000, "ratio": 0.2, "confidence": 0.85},
+        {"type": "耕地", "area_m2": 10000, "ratio": 0.667, "confidence": 0.92}
+      ],
+      "low_confidence_areas": ["图斑北部阴影区域"],
+      "dominant_type": "耕地",
+      "is_mixed": true
+    },
+    "expected_rules": ["R001", "R002", "R004", "R006"],
+    "expected_risk_level": "重点关注",
+    "expected_manual_review": true
+  },
+  {
+    "sample_id": "EVAL_R002",
+    "category": "robustness",
+    "category_label": "鲁棒性样本",
+    "description": "与EVAL_N002相同含义，但多了一个0面积林地条目",
+    "tags": ["零面积条目", "鲁棒性"],
+    "input": {
+      "parcel_id": "P20240102R",
+      "location": "浙江省杭州市拱墅区",
+      "total_area_m2": 8000,
+      "land_types": [
+        {"type": "建设用地", "area_m2": 5000, "ratio": 0.625, "confidence": 0.91},
+        {"type": "耕地", "area_m2": 2000, "ratio": 0.25, "confidence": 0.65},
+        {"type": "林地", "area_m2": 0, "ratio": 0.0, "confidence": 0.50},
+        {"type": "林地", "area_m2": 1000, "ratio": 0.125, "confidence": 0.88}
+      ],
+      "low_confidence_areas": ["图斑东侧边缘"],
+      "dominant_type": "建设用地",
+      "is_mixed": true
+    },
+    "expected_rules": ["R003", "R005", "R006"],
+    "expected_risk_level": "建议复核",
+    "expected_manual_review": true
+  },
+  {
+    "sample_id": "EVAL_R003",
+    "category": "robustness",
+    "category_label": "鲁棒性样本",
+    "description": "同EVAL_N003但location字段使用不同格式（英文+详细地址）",
+    "tags": ["格式变化", "鲁棒性"],
+    "input": {
+      "parcel_id": "P20240103R",
+      "location": "Xihu District, Hangzhou, Zhejiang",
+      "total_area_m2": 5000,
+      "land_types": [
+        {"type": "水体", "area_m2": 3500, "ratio": 0.7, "confidence": 0.55},
+        {"type": "草地", "area_m2": 1500, "ratio": 0.3, "confidence": 0.82}
+      ],
+      "low_confidence_areas": ["Water body boundary area"],
+      "dominant_type": "水体",
+      "is_mixed": false
+    },
+    "expected_rules": ["R004", "R005"],
+    "expected_risk_level": "建议复核",
+    "expected_manual_review": true
+  }
+]
