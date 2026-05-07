@@ -1,0 +1,207 @@
+/* === 全局样式 === */
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { font-family: "Microsoft YaHei", "PingFang SC", sans-serif; background: #f0f2f5; color: #333; }
+
+/* === 顶部标题栏 === */
+.app-header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 0 24px; height: 56px;
+  background: linear-gradient(135deg, #1a237e, #283593);
+  color: #fff;
+}
+.app-header h1 { font-size: 18px; font-weight: 600; }
+.app-header .subtitle { font-size: 13px; opacity: 0.8; }
+.app-header .header-nav {
+  display: flex; gap: 16px; margin-left: auto;
+}
+.app-header .header-nav a {
+  color: rgba(255,255,255,0.7); text-decoration: none; font-size: 13px;
+  padding: 4px 10px; border-radius: 4px; transition: all 0.2s;
+}
+.app-header .header-nav a:hover, .app-header .header-nav a.active {
+  color: #fff; background: rgba(255,255,255,0.15);
+}
+
+/* === 三栏布局 === */
+.three-column {
+  display: grid;
+  grid-template-columns: 320px 1fr 340px;
+  height: calc(100vh - 56px);
+}
+
+/* === 面板通用 === */
+.panel { background: #fff; overflow-y: auto; }
+.panel h2 {
+  font-size: 15px; font-weight: 600; color: #1a237e;
+  padding: 16px 16px 12px; border-bottom: 1px solid #e8eaf6;
+}
+.panel h3 {
+  font-size: 13px; font-weight: 600; color: #555;
+  padding: 12px 16px 8px;
+}
+
+/* === 左侧结果面板 === */
+.panel-left { border-right: 1px solid #e0e0e0; }
+.placeholder {
+  padding: 40px 16px; text-align: center; color: #999; font-size: 14px;
+}
+
+/* 结果区域 */
+.result-header {
+  padding: 12px 16px; background: #f5f5f5; border-bottom: 1px solid #e0e0e0;
+}
+.result-header .parcel-id { font-size: 16px; font-weight: 700; color: #1a237e; }
+.result-header .parcel-meta { font-size: 12px; color: #666; margin-top: 4px; }
+
+.risk-badge {
+  display: inline-block; padding: 2px 10px; border-radius: 10px;
+  font-size: 12px; font-weight: 600; color: #fff; margin-top: 6px;
+}
+.risk-badge-一般关注   { background: #4CAF50; }
+.risk-badge-重点关注   { background: #FF9800; }
+.risk-badge-建议复核   { background: #F44336; }
+.risk-badge-无特殊关注 { background: #9E9E9E; }
+
+.result-section { padding: 12px 16px; border-bottom: 1px solid #f0f0f0; }
+.result-section-title {
+  font-size: 13px; font-weight: 600; margin-bottom: 8px;
+}
+.result-section-title.attention { color: #388E3C; }
+.result-section-title.suspected { color: #E65100; }
+.result-section-title.review    { color: #C62828; }
+
+.rule-card {
+  border-left: 4px solid #ccc; padding: 8px 12px; margin-bottom: 8px;
+  background: #fafafa; border-radius: 0 4px 4px 0; font-size: 13px; line-height: 1.5;
+}
+.rule-card[data-type="关注"]   { border-left-color: #4CAF50; }
+.rule-card[data-type="疑似"]   { border-left-color: #FF9800; }
+.rule-card[data-type="建议复核"] { border-left-color: #F44336; }
+
+.review-card { border-left: 4px solid #F44336; }
+.review-card .review-priority {
+  display: inline-block; padding: 1px 8px; border-radius: 3px;
+  font-size: 11px; font-weight: 600; color: #fff; margin-right: 6px;
+}
+.review-card .review-priority.high { background: #F44336; }
+.review-card .review-priority.medium { background: #FF9800; }
+.review-card .review-reason { font-size: 11px; color: #888; margin-top: 4px; }
+
+.summary-text { font-size: 13px; line-height: 1.6; color: #444; }
+.generated-at { font-size: 11px; color: #aaa; padding: 8px 16px; }
+
+/* === 中间三维地球面板 === */
+.panel-center { position: relative; }
+#cesiumContainer { position: absolute; inset: 0; }
+/* 隐藏Cesium默认logo和版权条以保持整洁 */
+.cesium-viewer-bottom { display: none !important; }
+
+/* === 右侧输入面板 === */
+.panel-right { border-left: 1px solid #e0e0e0; }
+.form-group { padding: 8px 16px; }
+.form-group label {
+  display: block; font-size: 12px; font-weight: 600; color: #555; margin-bottom: 4px;
+}
+.form-group input[type="text"],
+.form-group input[type="number"],
+.form-group select,
+.form-group textarea {
+  width: 100%; padding: 6px 10px; border: 1px solid #ddd; border-radius: 4px;
+  font-size: 13px; font-family: inherit;
+}
+.form-group input:focus,
+.form-group select:focus,
+.form-group textarea:focus {
+  outline: none; border-color: #1a237e; box-shadow: 0 0 0 2px rgba(26,35,126,0.1);
+}
+.checkbox-group label { display: flex; align-items: center; gap: 6px; font-size: 13px; }
+
+/* 地类明细行 */
+.land-type-row {
+  display: grid; grid-template-columns: 80px 1fr 1fr 1fr;
+  gap: 4px; padding: 6px 16px; align-items: center;
+}
+.land-type-row select,
+.land-type-row input {
+  padding: 4px 6px; font-size: 12px; border: 1px solid #ddd; border-radius: 3px;
+}
+
+/* 按钮 */
+.btn {
+  display: inline-block; padding: 8px 20px; border: none; border-radius: 4px;
+  font-size: 13px; font-weight: 600; cursor: pointer; font-family: inherit;
+}
+.btn-primary {
+  display: block; width: calc(100% - 32px); margin: 16px;
+  background: #1a237e; color: #fff; text-align: center;
+}
+.btn-primary:hover { background: #283593; }
+.btn-primary:disabled { background: #bbb; cursor: not-allowed; }
+.btn-small {
+  margin: 0 16px 8px; padding: 4px 12px;
+  background: #e8eaf6; color: #1a237e; font-size: 12px;
+}
+.btn-small:hover { background: #c5cae9; }
+
+/* 加载状态 */
+.loading { text-align: center; padding: 40px 16px; color: #999; }
+.loading::after {
+  content: ""; display: inline-block; width: 20px; height: 20px;
+  border: 2px solid #ddd; border-top-color: #1a237e;
+  border-radius: 50%; animation: spin 0.8s linear infinite;
+  margin-right: 8px; vertical-align: middle;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* 地图图例 */
+.map-legend {
+  position: absolute; bottom: 20px; right: 10px; z-index: 10;
+  background: rgba(255,255,255,0.92); padding: 10px 14px; border-radius: 6px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.15); font-size: 12px;
+  pointer-events: auto;
+}
+.map-legend h4 { font-size: 12px; margin-bottom: 6px; color: #333; }
+.legend-item { display: flex; align-items: center; gap: 6px; margin-bottom: 3px; }
+.legend-color {
+  width: 16px; height: 12px; border-radius: 2px; border: 1px solid rgba(0,0,0,0.1);
+}
+
+/* 地图最大化 / 恢复按钮 */
+.map-toggle-btn {
+  position: absolute; top: 12px; right: 12px; z-index: 10;
+  padding: 8px 16px; background: rgba(26,35,126,0.85); color: #fff;
+  font-size: 13px; font-weight: 600; border-radius: 6px; cursor: pointer;
+  border: none; font-family: inherit; transition: background 0.2s; user-select: none;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.25);
+}
+.map-toggle-btn:hover { background: rgba(40,53,147,0.95); }
+.map-toggle-btn.hidden { display: none; }
+
+/* 全屏地图模式 */
+body.map-fullscreen .three-column { grid-template-columns: 1fr; }
+body.map-fullscreen .panel-left,
+body.map-fullscreen .panel-right { display: none; }
+
+/* 返回卫星视角按钮 */
+.back-to-space-btn {
+  position: absolute; top: 12px; left: 12px; z-index: 10;
+  padding: 8px 16px; background: rgba(26,35,126,0.85); color: #fff;
+  font-size: 13px; font-weight: 600; border-radius: 6px; cursor: pointer;
+  font-family: inherit; transition: background 0.2s; user-select: none;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.25);
+}
+.back-to-space-btn:hover {
+  background: rgba(40,53,147,0.95);
+}
+
+/* 正北朝上按钮 */
+.reset-north-btn {
+  position: absolute; top: 52px; left: 12px; z-index: 10;
+  padding: 8px 16px; background: rgba(26,35,126,0.85); color: #fff;
+  font-size: 13px; font-weight: 600; border-radius: 6px; cursor: pointer;
+  font-family: inherit; transition: background 0.2s; user-select: none;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.25);
+}
+.reset-north-btn:hover {
+  background: rgba(40,53,147,0.95);
+}
