@@ -3,7 +3,11 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<<<<<<< HEAD
   <title>用地合规提示Agent</title>
+=======
+  <title>地类识别Agent</title>
+>>>>>>> f79a1051622dbcf7b6c5f4aad027596008fea322
   <script>window.CESIUM_BASE_URL = 'https://cdn.jsdelivr.net/npm/cesium@1.119/Build/Cesium/';</script>
   <script src="https://cdn.jsdelivr.net/npm/cesium@1.119/Build/Cesium/Cesium.js"></script>
   <link href="https://cdn.jsdelivr.net/npm/cesium@1.119/Build/Cesium/Widgets/widgets.css" rel="stylesheet">
@@ -11,6 +15,7 @@
 </head>
 <body>
   <header class="app-header">
+<<<<<<< HEAD
     <h1>用地合规提示Agent</h1>
     <span class="subtitle">第二组 · 用地识别智能体 · 王新林</span>
     <nav class="header-nav">
@@ -210,6 +215,92 @@
         </div>
       </div>
 
+=======
+    <h1>地类识别Agent</h1>
+    <nav class="header-nav">
+      <a href="/" class="active">地图分析</a>
+      <a href="/results">合规分析结果</a>
+      <a href="/eval">评测</a>
+    </nav>
+  </header>
+  <main class="map-form-layout">
+    <!-- 左侧：三维地球 -->
+    <section class="panel panel-center" id="mapPanel">
+      <div id="cesiumContainer"></div>
+      <div id="mapControlGroup" class="map-control-group">
+        <button id="backToSpaceBtn" class="map-icon-btn" title="返回卫星视角" aria-label="返回卫星视角">🛰</button>
+        <button id="resetNorthBtn" class="map-icon-btn" title="正北朝上" aria-label="正北朝上">🧭</button>
+        <button id="maximizeBtn" class="map-icon-btn" title="地图最大化" aria-label="地图最大化">⛶</button>
+        <button id="restoreBtn" class="map-icon-btn hidden" title="恢复三栏布局" aria-label="恢复三栏布局">🗗</button>
+      </div>
+    </section>
+    <!-- 右侧：图斑数据输入 -->
+    <aside class="panel panel-right" id="inputPanel">
+      <h2>图斑数据输入</h2>
+      <form id="parcelForm">
+        <div class="form-group">
+          <label>图斑ID</label>
+          <input type="text" id="parcelId" value="P20240199" required>
+        </div>
+        <div class="form-group">
+          <label>位置</label>
+          <input type="text" id="location" value="浙江省杭州市西湖区">
+        </div>
+        <div class="form-group">
+          <label>总面积 (m²)</label>
+          <input type="number" id="totalArea" value="10000" min="1" required>
+        </div>
+        <div class="form-group">
+          <label>主导地类</label>
+          <select id="dominantType">
+            <option value="耕地">耕地</option>
+            <option value="建设用地">建设用地</option>
+            <option value="水体">水体</option>
+            <option value="林地">林地</option>
+            <option value="草地">草地</option>
+          </select>
+        </div>
+        <div class="form-group checkbox-group">
+          <label><input type="checkbox" id="isMixed" checked> 混合图斑</label>
+        </div>
+
+        <h3>地类明细</h3>
+        <div id="landTypesContainer">
+          <div class="land-type-row" data-index="0">
+            <select class="lt-type">
+              <option value="耕地" selected>耕地</option>
+              <option value="建设用地">建设用地</option>
+              <option value="水体">水体</option>
+              <option value="林地">林地</option>
+              <option value="草地">草地</option>
+            </select>
+            <input type="number" class="lt-area" value="6000" min="0" placeholder="面积m²">
+            <input type="number" class="lt-ratio" value="0.60" min="0" max="1" step="0.01" placeholder="占比">
+            <input type="number" class="lt-conf" value="0.90" min="0" max="1" step="0.01" placeholder="置信度">
+          </div>
+          <div class="land-type-row" data-index="1">
+            <select class="lt-type">
+              <option value="耕地">耕地</option>
+              <option value="建设用地" selected>建设用地</option>
+              <option value="水体">水体</option>
+              <option value="林地">林地</option>
+              <option value="草地">草地</option>
+            </select>
+            <input type="number" class="lt-area" value="4000" min="0" placeholder="面积m²">
+            <input type="number" class="lt-ratio" value="0.40" min="0" max="1" step="0.01" placeholder="占比">
+            <input type="number" class="lt-conf" value="0.85" min="0" max="1" step="0.01" placeholder="置信度">
+          </div>
+        </div>
+        <button type="button" id="addLandTypeBtn" class="btn btn-small">+ 添加地类</button>
+
+        <div class="form-group">
+          <label>低置信度区域</label>
+          <textarea id="lowConfAreas" rows="2" placeholder="如：图斑北部阴影区域（多项用逗号分隔）"></textarea>
+        </div>
+
+        <button type="submit" class="btn btn-primary" id="analyzeBtn">提交分析</button>
+      </form>
+>>>>>>> f79a1051622dbcf7b6c5f4aad027596008fea322
     </aside>
   </main>
   <script src="/static/js/app.js"></script>
