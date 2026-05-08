@@ -30,15 +30,13 @@ def _load_parcels_geojson() -> dict:
         return json.load(f)
 
 
-<<<<<<< HEAD
 def _load_land_segments() -> dict:
     path = os.path.join(DATA_DIR, "land_segments.geojson")
     with open(path, "r", encoding="utf-8") as f:
         return json.load(f)
 
 
-=======
->>>>>>> f79a1051622dbcf7b6c5f4aad027596008fea322
+
 def create_app():
     app = Flask(__name__,
                 template_folder=os.path.join(WEB_DIR, "templates"),
@@ -77,14 +75,12 @@ def create_app():
         report = build_report(parcel, triggered)
         return jsonify(report)
 
-<<<<<<< HEAD
     @app.route("/api/land-segments")
     def get_land_segments():
         """返回浙江省地类分割GeoJSON。"""
         return jsonify(_load_land_segments())
 
-=======
->>>>>>> f79a1051622dbcf7b6c5f4aad027596008fea322
+
     @app.route("/api/analyze", methods=["POST"])
     def analyze():
         """分析用户输入的图斑数据，返回合规报告。"""
@@ -101,14 +97,6 @@ def create_app():
         report = build_report(parcel_data, triggered)
         return jsonify(report)
 
-<<<<<<< HEAD
-=======
-    @app.route("/results")
-    def results_page():
-        """合规分析结果页面。"""
-        return render_template("results.html")
-
->>>>>>> f79a1051622dbcf7b6c5f4aad027596008fea322
     @app.route("/eval")
     def eval_page():
         """评测样本集浏览页面。"""
