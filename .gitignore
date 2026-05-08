@@ -37,12 +37,12 @@ __pycache__/
 *.pyc
 
 # =========================
-# Large / runtime assets
+# Large / runtime assets (managed by Git LFS instead)
 # =========================
-*.tif
-*.tiff
-uploads/
-overlays/
-test_image.tif
+# *.tif   -> tracked by Git LFS via .gitattributes
+# *.tiff  -> tracked by Git LFS via .gitattributes
+# uploads/ -> tracked by Git LFS via .gitattributes
+# overlays/ -> tracked by Git LFS via .gitattributes
+# test_overlay.png -> kept ignored (test artifact)
 test_overlay.png
 
