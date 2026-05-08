@@ -22,7 +22,7 @@ def open_browser():
 
 if __name__ == '__main__':
     print("=" * 50)
-    print("  用地合规提示Agent - Web 预览版")
+    print("  用地识别智能体 - Web 预览版")
     print("  服务启动中，请稍候...")
     print("=" * 50)
     threading.Thread(target=open_browser, daemon=True).start()

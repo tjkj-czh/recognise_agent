@@ -1,4 +1,4 @@
-"""用地合规提示Agent Web Demo - Flask应用。"""
+"""用地识别智能体 Web Demo - Flask应用。"""
 
 import json
 import os

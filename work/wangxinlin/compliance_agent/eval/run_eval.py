@@ -1,4 +1,4 @@
-"""用地合规提示Agent - 评测运行脚本。
+"""用地识别智能体 - 评测运行脚本。
 
 使用方式:
   python eval/run_eval.py            # 运行全部评测
@@ -123,7 +123,7 @@ def run_eval(category_filter=None, verbose=False):
 
     # 打印报告
     print("\n" + "=" * 70)
-    print("  用地合规提示Agent - 评测报告")
+    print("  用地识别智能体 - 评测报告")
     print("  王新林 · 第二组 · 用地识别智能体")
     print(f"  时间: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
     print("=" * 70)
@@ -197,7 +197,7 @@ def run_eval(category_filter=None, verbose=False):
 
 if __name__ == "__main__":
     import argparse
-    parser = argparse.ArgumentParser(description="用地合规提示Agent评测")
+    parser = argparse.ArgumentParser(description="用地识别智能体评测")
     parser.add_argument("--category", default=None,
                         choices=["normal", "boundary", "abnormal", "adversarial", "robustness"],
                         help="只跑指定类别的样本")

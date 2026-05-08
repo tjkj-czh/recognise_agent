@@ -1,4 +1,4 @@
-"""用地合规提示Agent Demo - 入口文件。
+"""用地识别智能体 Demo - 入口文件。
 
 使用方式:
 1. 配置环境变量: set ZHIPU_API_KEY=your_key (智谱) 或 set OPENAI_API_KEY=your_key (OpenAI)
@@ -64,7 +64,7 @@ def main():
         samples = json.load(f)
 
     print("=" * 60)
-    print("  用地合规提示Agent Demo")
+    print("  用地识别智能体 Demo")
     print("  王新林 - 第二组·用地识别智能体")
     print("=" * 60)
 

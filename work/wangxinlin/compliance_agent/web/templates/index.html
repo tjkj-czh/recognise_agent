@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>用地合规提示Agent</title>
+  <title>用地识别智能体</title>
   <script>window.CESIUM_BASE_URL = 'https://cdn.jsdelivr.net/npm/cesium@1.119/Build/Cesium/';</script>
   <script src="https://cdn.jsdelivr.net/npm/cesium@1.119/Build/Cesium/Cesium.js"></script>
   <link href="https://cdn.jsdelivr.net/npm/cesium@1.119/Build/Cesium/Widgets/widgets.css" rel="stylesheet">
@@ -11,8 +11,7 @@
 </head>
 <body>
   <header class="app-header">
-    <h1>用地合规提示Agent</h1>
-    <span class="subtitle">第二组 · 用地识别智能体 · 王新林</span>
+    <h1>用地识别智能体</h1>
     <nav class="header-nav">
       <a href="/" class="active">地图分析</a>
       <a href="/eval">评测</a>
@@ -41,69 +40,29 @@
         <div class="input-section">
           <div class="section-label">输入区</div>
           <form id="parcelForm">
-            <div class="form-group">
-              <label>图斑ID</label>
-              <input type="text" id="parcelId" value="P20240199" required>
+            <div class="chat-input-area">
+              <textarea class="chat-textarea" id="complianceChat" rows="8" placeholder="请输入图斑信息，支持 JSON 格式描述...
+示例格式：
+{
+  &#34;parcel_id&#34;: &#34;P20240199&#34;,
+  &#34;location&#34;: &#34;浙江省杭州市西湖区&#34;,
+  &#34;total_area_m2&#34;: 10000,
+  &#34;dominant_type&#34;: &#34;耕地&#34;,
+  &#34;is_mixed&#34;: true,
+  &#34;land_types&#34;: [
+    {&#34;type&#34;: &#34;耕地&#34;, &#34;area_m2&#34;: 6000, &#34;ratio&#34;: 0.6, &#34;confidence&#34;: 0.9},
+    {&#34;type&#34;: &#34;建设用地&#34;, &#34;area_m2&#34;: 4000, &#34;ratio&#34;: 0.4, &#34;confidence&#34;: 0.85}
+  ],
+  &#34;low_confidence_areas&#34;: [&#34;图斑北部阴影区域&#34;]
+}"></textarea>
             </div>
             <div class="form-group">
-              <label>位置</label>
-              <input type="text" id="location" value="浙江省杭州市西湖区">
-            </div>
-            <div class="form-group">
-              <label>总面积 (m²)</label>
-              <input type="number" id="totalArea" value="10000" min="1" required>
-            </div>
-            <div class="form-group">
-              <label>主导地类</label>
-              <select id="dominantType">
-                <option value="耕地">耕地</option>
-                <option value="建设用地">建设用地</option>
-                <option value="水体">水体</option>
-                <option value="林地">林地</option>
-                <option value="草地">草地</option>
-              </select>
-            </div>
-            <div class="form-group checkbox-group">
-              <label><input type="checkbox" id="isMixed" checked> 混合图斑</label>
-            </div>
-            <h3>地类明细</h3>
-            <div id="landTypesContainer">
-              <div class="land-type-row" data-index="0">
-                <select class="lt-type">
-                  <option value="耕地" selected>耕地</option>
-                  <option value="建设用地">建设用地</option>
-                  <option value="水体">水体</option>
-                  <option value="林地">林地</option>
-                  <option value="草地">草地</option>
-                </select>
-                <input type="number" class="lt-area" value="6000" min="0" placeholder="面积m²">
-                <input type="number" class="lt-ratio" value="0.60" min="0" max="1" step="0.01" placeholder="占比">
-                <input type="number" class="lt-conf" value="0.90" min="0" max="1" step="0.01" placeholder="置信度">
-              </div>
-              <div class="land-type-row" data-index="1">
-                <select class="lt-type">
-                  <option value="耕地">耕地</option>
-                  <option value="建设用地" selected>建设用地</option>
-                  <option value="水体">水体</option>
-                  <option value="林地">林地</option>
-                  <option value="草地">草地</option>
-                </select>
-                <input type="number" class="lt-area" value="4000" min="0" placeholder="面积m²">
-                <input type="number" class="lt-ratio" value="0.40" min="0" max="1" step="0.01" placeholder="占比">
-                <input type="number" class="lt-conf" value="0.85" min="0" max="1" step="0.01" placeholder="置信度">
-              </div>
-            </div>
-            <button type="button" id="addLandTypeBtn" class="btn btn-small">+ 添加地类</button>
-            <div class="form-group">
-              <label>低置信度区域</label>
-              <textarea id="lowConfAreas" rows="2" placeholder="如：图斑北部阴影区域（多项用逗号分隔）"></textarea>
-            </div>
-            <div class="form-group">
-              <label>上传影像/合规范围文件</label>
+              <label>附件上传</label>
               <div class="upload-area" id="complianceUploadArea">
                 <span class="upload-hint">点击或拖拽文件到此处上传</span>
                 <input type="file" id="complianceFile" multiple accept=".json,.geojson,.shp,.tif,.img,.png,.jpg">
               </div>
+              <div class="upload-file-list" id="complianceFileList"></div>
             </div>
             <button type="submit" class="btn btn-primary" id="analyzeBtn">提交分析</button>
           </form>
@@ -126,77 +85,33 @@
         <div class="input-section">
           <div class="section-label">输入区</div>
           <form id="comparisonForm">
-            <div class="form-group">
-              <label>图斑ID</label>
-              <input type="text" id="compParcelId" value="P20240199" required>
+            <div class="chat-input-area">
+              <textarea class="chat-textarea" id="comparisonChat" rows="8" placeholder="请输入现状基底校核信息，支持 JSON 格式描述...
+示例格式：
+{
+  &quot;parcel_id&quot;: &quot;P20240199&quot;,
+  &quot;location&quot;: &quot;浙江省杭州市西湖区&quot;,
+  &quot;base_data&quot;: {
+    &quot;source&quot;: &quot;2023年二调数据&quot;,
+    &quot;dominant_type&quot;: &quot;耕地&quot;,
+    &quot;total_area_m2&quot;: 10000
+  },
+  &quot;comp_data&quot;: {
+    &quot;source&quot;: &quot;2024年遥感影像&quot;,
+    &quot;dominant_type&quot;: &quot;建设用地&quot;,
+    &quot;total_area_m2&quot;: 10500
+  },
+  &quot;checks&quot;: [&quot;边界范围变化&quot;, &quot;道路/水系/地块新增或消失&quot;, &quot;行政区划/村镇界线调整&quot;, &quot;老旧数据与现状实景差异&quot;]
+}"></textarea>
             </div>
             <div class="form-group">
-              <label>位置</label>
-              <input type="text" id="compLocation" value="浙江省杭州市西湖区">
-            </div>
-
-            <h3>基准数据（历史影像/基底）</h3>
-            <div class="form-group">
-              <label>数据来源</label>
-              <input type="text" id="baseDataSource" value="2023年二调数据" placeholder="如：2023年二调数据">
-            </div>
-            <div class="form-group">
-              <label>主导地类</label>
-              <select id="baseDominantType">
-                <option value="耕地" selected>耕地</option>
-                <option value="建设用地">建设用地</option>
-                <option value="水体">水体</option>
-                <option value="林地">林地</option>
-                <option value="草地">草地</option>
-              </select>
-            </div>
-            <div class="form-group">
-              <label>总面积 (m²)</label>
-              <input type="number" id="baseTotalArea" value="10000" min="1">
-            </div>
-
-            <h3>比对数据（现势影像/现状）</h3>
-            <div class="form-group">
-              <label>数据来源</label>
-              <input type="text" id="compDataSource" value="2024年遥感影像" placeholder="如：2024年遥感影像">
-            </div>
-            <div class="form-group">
-              <label>主导地类</label>
-              <select id="compDominantType">
-                <option value="耕地">耕地</option>
-                <option value="建设用地" selected>建设用地</option>
-                <option value="水体">水体</option>
-                <option value="林地">林地</option>
-                <option value="草地">草地</option>
-              </select>
-            </div>
-            <div class="form-group">
-              <label>总面积 (m²)</label>
-              <input type="number" id="compTotalArea" value="10500" min="1">
-            </div>
-
-            <h3>校核项目</h3>
-            <div class="form-group checkbox-group">
-              <label><input type="checkbox" id="chkBoundary" checked> 边界范围变化</label>
-            </div>
-            <div class="form-group checkbox-group">
-              <label><input type="checkbox" id="chkRoadWater" checked> 道路/水系/地块新增或消失</label>
-            </div>
-            <div class="form-group checkbox-group">
-              <label><input type="checkbox" id="chkAdmin" checked> 行政区划/村镇界线调整</label>
-            </div>
-            <div class="form-group checkbox-group">
-              <label><input type="checkbox" id="chkDiff" checked> 老旧数据与现状实景差异</label>
-            </div>
-
-            <div class="form-group">
-              <label>上传影像/比对数据文件</label>
+              <label>附件上传</label>
               <div class="upload-area" id="comparisonUploadArea">
                 <span class="upload-hint">点击或拖拽文件到此处上传</span>
                 <input type="file" id="comparisonFile" multiple accept=".json,.geojson,.shp,.tif,.img,.png,.jpg">
               </div>
+              <div class="upload-file-list" id="comparisonFileList"></div>
             </div>
-
             <button type="submit" class="btn btn-primary" id="compareBtn">提交校核</button>
           </form>
         </div>

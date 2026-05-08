@@ -4,15 +4,19 @@ body { font-family: "Microsoft YaHei", "PingFang SC", sans-serif; background: #0
 
 /* === 顶部标题栏 === */
 .app-header {
-  display: flex; align-items: center; justify-content: space-between;
+  display: flex; align-items: center; justify-content: center;
+  position: relative;
   padding: 0 24px; height: 56px;
   background: linear-gradient(135deg, #0a1628, #0d2137);
   color: #fff;
 }
-.app-header h1 { font-size: 18px; font-weight: 600; }
-.app-header .subtitle { font-size: 13px; opacity: 0.8; }
+.app-header h1 {
+  font-size: 18px; font-weight: 600;
+  position: absolute; left: 50%; transform: translateX(-50%);
+}
 .app-header .header-nav {
-  display: flex; gap: 16px; margin-left: auto;
+  display: flex; gap: 16px;
+  position: absolute; right: 24px;
 }
 .app-header .header-nav a {
   color: rgba(255,255,255,0.7); text-decoration: none; font-size: 13px;
@@ -118,6 +122,23 @@ body { font-family: "Microsoft YaHei", "PingFang SC", sans-serif; background: #0
 }
 .upload-file-list div {
   padding: 2px 0;
+}
+
+/* 对话文本框 */
+.chat-input-area { padding: 8px 16px; }
+.chat-textarea {
+  width: 100%; min-height: 140px; padding: 12px;
+  border: 1px solid rgba(126,200,240,0.2); border-radius: 8px;
+  font-size: 13px; font-family: "Consolas", "Microsoft YaHei", monospace;
+  background: rgba(126,200,240,0.06); color: #c8e4f8;
+  resize: vertical; line-height: 1.6;
+}
+.chat-textarea:focus {
+  outline: none; border-color: #7ec8f0;
+  box-shadow: 0 0 0 2px rgba(126,200,240,0.2);
+}
+.chat-textarea::placeholder {
+  color: rgba(126,200,240,0.3); font-family: "Microsoft YaHei", sans-serif;
 }
 
 /* 表单 */

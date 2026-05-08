@@ -1,4 +1,4 @@
-/* === 用地合规提示Agent - CesiumJS 三维地球交互逻辑 === */
+/* === 用地识别智能体 - CesiumJS 三维地球交互逻辑 === */
 
 const RISK_COLORS = {
   "一般关注": Cesium.Color.fromCssColorString("#4CAF50").withAlpha(0.55),
@@ -902,7 +902,7 @@ function initCesium() {
     timeline: false,
     baseLayerPicker: false,
     geocoder: false,
-    homeButton: true,
+    homeButton: false,
     sceneModePicker: false,
     navigationHelpButton: false,
     fullscreenButton: false,
@@ -1467,7 +1467,6 @@ function handleFiles(area, files) {
 // === 表单逻辑 ===
 function initForm() {
   document.getElementById("parcelForm").addEventListener("submit", onFormSubmit);
-  document.getElementById("addLandTypeBtn").addEventListener("click", addLandTypeRow);
 
   // 模块切换
   document.querySelectorAll(".module-tab").forEach((tab) => {
@@ -1511,55 +1510,44 @@ function onFormSubmit(e) {
 }
 
 function serializeForm() {
-  const totalArea = parseFloat(document.getElementById("totalArea").value) || 0;
-  const landTypes = [];
+  const raw = document.getElementById("complianceChat").value.trim();
 
-  document.querySelectorAll(".land-type-row").forEach((row) => {
-    const type = row.querySelector(".lt-type").value;
-    const area = parseFloat(row.querySelector(".lt-area").value) || 0;
-    const ratio = parseFloat(row.querySelector(".lt-ratio").value) || 0;
-    const conf = parseFloat(row.querySelector(".lt-conf").value) || 0;
-    if (type && area > 0) {
-      landTypes.push({ type, area_m2: area, ratio, confidence: conf });
-    }
-  });
-
-  const lowConfStr = document.getElementById("lowConfAreas").value.trim();
-  const lowConfAreas = lowConfStr
-    ? lowConfStr.split(/[,，]/).map((s) => s.trim()).filter(Boolean)
-    : [];
-
-  return {
-    parcel_id: document.getElementById("parcelId").value.trim(),
-    location: document.getElementById("location").value.trim(),
-    total_area_m2: totalArea,
-    dominant_type: document.getElementById("dominantType").value,
-    is_mixed: document.getElementById("isMixed").checked,
-    land_types: landTypes,
-    low_confidence_areas: lowConfAreas,
+  // 默认示例数据
+  const defaults = {
+    parcel_id: "P20240199",
+    location: "浙江省杭州市西湖区",
+    total_area_m2: 10000,
+    dominant_type: "耕地",
+    is_mixed: true,
+    land_types: [
+      { type: "耕地", area_m2: 6000, ratio: 0.6, confidence: 0.9 },
+      { type: "建设用地", area_m2: 4000, ratio: 0.4, confidence: 0.85 },
+    ],
+    low_confidence_areas: ["图斑北部阴影区域"],
   };
+
+  if (!raw) return defaults;
+
+  try {
+    const parsed = JSON.parse(raw);
+    return {
+      parcel_id: parsed.parcel_id || defaults.parcel_id,
+      location: parsed.location || defaults.location,
+      total_area_m2: parsed.total_area_m2 || defaults.total_area_m2,
+      dominant_type: parsed.dominant_type || defaults.dominant_type,
+      is_mixed: parsed.is_mixed !== undefined ? parsed.is_mixed : defaults.is_mixed,
+      land_types: Array.isArray(parsed.land_types) ? parsed.land_types : defaults.land_types,
+      low_confidence_areas: Array.isArray(parsed.low_confidence_areas)
+        ? parsed.low_confidence_areas
+        : defaults.low_confidence_areas,
+    };
+  } catch (e) {
+    console.warn("[合规] JSON 解析失败，使用默认值", e);
+    return defaults;
+  }
 }
 
-function addLandTypeRow() {
-  const container = document.getElementById("landTypesContainer");
-  const idx = container.children.length;
-  const row = document.createElement("div");
-  row.className = "land-type-row";
-  row.dataset.index = idx;
-  row.innerHTML = `
-    <select class="lt-type">
-      <option value="耕地">耕地</option>
-      <option value="建设用地">建设用地</option>
-      <option value="水体">水体</option>
-      <option value="林地">林地</option>
-      <option value="草地">草地</option>
-    </select>
-    <input type="number" class="lt-area" min="0" placeholder="面积m²">
-    <input type="number" class="lt-ratio" min="0" max="1" step="0.01" placeholder="占比">
-    <input type="number" class="lt-conf" min="0" max="1" step="0.01" placeholder="置信度">
-  `;
-  container.appendChild(row);
-}
+// addLandTypeRow removed (chat textarea replaces form fields)
 
 function onCompareSubmit(e) {
   e.preventDefault();
@@ -1567,18 +1555,41 @@ function onCompareSubmit(e) {
   btn.disabled = true;
   btn.textContent = "校核中...";
 
-  const baseType = document.getElementById("baseDominantType").value;
-  const compType = document.getElementById("compDominantType").value;
-  const baseArea = parseFloat(document.getElementById("baseTotalArea").value) || 0;
-  const compArea = parseFloat(document.getElementById("compTotalArea").value) || 0;
+  const raw = document.getElementById("comparisonChat").value.trim();
+
+  // 默认示例数据
+  const defaults = {
+    parcel_id: "P20240199",
+    location: "浙江省杭州市西湖区",
+    base_data: { source: "2023年二调数据", dominant_type: "耕地", total_area_m2: 10000 },
+    comp_data: { source: "2024年遥感影像", dominant_type: "建设用地", total_area_m2: 10500 },
+    checks: ["边界范围变化", "道路/水系/地块新增或消失", "行政区划/村镇界线调整", "老旧数据与现状实景差异"],
+  };
+
+  let data = defaults;
+  if (raw) {
+    try {
+      const parsed = JSON.parse(raw);
+      data = {
+        parcel_id: parsed.parcel_id || defaults.parcel_id,
+        location: parsed.location || defaults.location,
+        base_data: parsed.base_data || defaults.base_data,
+        comp_data: parsed.comp_data || defaults.comp_data,
+        checks: Array.isArray(parsed.checks) ? parsed.checks : defaults.checks,
+      };
+    } catch (err) {
+      console.warn("[校核] JSON 解析失败，使用默认值", err);
+    }
+  }
+
+  const baseType = data.base_data.dominant_type;
+  const compType = data.comp_data.dominant_type;
+  const baseArea = data.base_data.total_area_m2;
+  const compArea = data.comp_data.total_area_m2;
   const areaDiff = compArea - baseArea;
   const areaChangePct = baseArea > 0 ? ((areaDiff / baseArea) * 100).toFixed(1) : 0;
 
-  const checks = [];
-  if (document.getElementById("chkBoundary").checked) checks.push("边界范围变化");
-  if (document.getElementById("chkRoadWater").checked) checks.push("道路/水系/地块新增或消失");
-  if (document.getElementById("chkAdmin").checked) checks.push("行政区划/村镇界线调整");
-  if (document.getElementById("chkDiff").checked) checks.push("老旧数据与现状实景差异");
+  const checks = data.checks;
 
   const results = [];
 
@@ -1637,11 +1648,11 @@ function onCompareSubmit(e) {
   const overallRisk = hasReview ? "建议复核" : hasFocus ? "重点关注" : results.some((r) => r.level === "一般关注") ? "一般关注" : "无特殊关注";
 
   const report = {
-    parcel_id: document.getElementById("compParcelId").value.trim(),
-    location: document.getElementById("compLocation").value.trim(),
+    parcel_id: data.parcel_id,
+    location: data.location,
     overall_risk_level: overallRisk,
-    base_data_source: document.getElementById("baseDataSource").value,
-    comp_data_source: document.getElementById("compDataSource").value,
+    base_data_source: data.base_data.source,
+    comp_data_source: data.comp_data.source,
     comparison_items: checks,
     comparison_results: results,
     summary: `校核完成，共检查 ${checks.length} 项，其中 ${results.filter((r) => r.status !== "无变化").length} 项存在变化/差异。`,

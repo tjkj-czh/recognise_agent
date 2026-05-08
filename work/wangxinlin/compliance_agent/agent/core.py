@@ -1,4 +1,4 @@
-"""用地合规提示Agent核心编排逻辑。"""
+"""用地识别智能体核心编排逻辑。"""
 
 import json
 import sys
@@ -39,7 +39,7 @@ def _get_llm():
 
 
 def build_agent():
-    """构建用地合规提示Agent（基于LangGraph react agent）。"""
+    """构建用地识别智能体（基于LangGraph react agent）。"""
     llm = _get_llm()
 
     tools = [
