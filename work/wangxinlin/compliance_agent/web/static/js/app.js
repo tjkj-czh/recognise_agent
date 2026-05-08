@@ -883,19 +883,19 @@ document.addEventListener("DOMContentLoaded", () => {
 function initCesium() {
   Cesium.Ion.defaultAccessToken = undefined;
 
-  // 底层：ESRI World Imagery（覆盖全球含极地，地理投影）
-  const esriWorldImagery = new Cesium.UrlTemplateImageryProvider({
+  // 底图1：ESRI World Imagery（WGS-84，全球覆盖保底）
+  const esriImagery = new Cesium.UrlTemplateImageryProvider({
     url: "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
-    maximumLevel: 19,
+    maximumLevel: 23,
+    credit: "Esri",
   });
 
-  // 上层：卫星影像底图（高德卫星，国内最清晰稳定，Mercator 投影极地无瓦片）
-  const satelliteImagery = new Cesium.UrlTemplateImageryProvider({
-    url: "https://webst0{s}.is.autonavi.com/appmaptile?style=6&x={x}&y={y}&z={z}",
-    subdomains: "1234",
-    maximumLevel: 18,
+  // 底图2：Google 卫星影像（WGS-84，纯卫星无标注）
+  const googleImagery = new Cesium.UrlTemplateImageryProvider({
+    url: "https://mt1.google.com/vt/lyrs=s&x={x}&y={y}&z={z}",
+    maximumLevel: 22,
+    credit: "Google Satellite",
   });
-  satelliteLayer = new Cesium.ImageryLayer(satelliteImagery);
 
   viewer = new Cesium.Viewer("cesiumContainer", {
     animation: false,
@@ -914,10 +914,10 @@ function initCesium() {
     skyAtmosphere: new Cesium.SkyAtmosphere(),
   });
 
-  // 底层：ESRI 全球影像（极地有覆盖）
-  viewer.imageryLayers.addImageryProvider(esriWorldImagery);
-  // 上层：高德卫星（中低纬度覆盖更清晰，极地无瓦片则透出底层 ESRI）
-  viewer.imageryLayers.addImageryProvider(satelliteImagery);
+  // 底层：ESRI 全球影像（极地有覆盖，作为保底）
+  viewer.imageryLayers.addImageryProvider(esriImagery);
+  // 上层：Google 卫星（WGS-84 坐标准确，国内区域更清晰；无瓦片处透出底层 ESRI）
+  satelliteLayer = viewer.imageryLayers.addImageryProvider(googleImagery);
 
   // 异步加载真实地形（ArcGIS 全球高程）
   loadTerrain();
@@ -1468,6 +1468,15 @@ function handleFiles(area, files) {
 function initForm() {
   document.getElementById("parcelForm").addEventListener("submit", onFormSubmit);
 
+  // 输入框回车发送（Shift+Enter换行）
+  const chatInput = document.getElementById("complianceChat");
+  chatInput.addEventListener("keydown", (e) => {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      document.getElementById("parcelForm").dispatchEvent(new Event("submit"));
+    }
+  });
+
   // 模块切换
   document.querySelectorAll(".module-tab").forEach((tab) => {
     tab.addEventListener("click", () => {
@@ -1488,6 +1497,20 @@ function onFormSubmit(e) {
   const btn = document.getElementById("analyzeBtn");
   btn.disabled = true;
   btn.textContent = "分析中...";
+
+  const raw = document.getElementById("complianceChat").value.trim();
+
+  // 自然语言指令解析
+  const command = parseNaturalLanguageCommand(raw);
+  if (command && command.type === "list") {
+    executeListCommand(command)
+      .catch((err) => showError(err))
+      .finally(() => {
+        btn.disabled = false;
+        btn.textContent = "提交分析";
+      });
+    return;
+  }
 
   const parcelData = serializeForm();
   showLoading();
@@ -1548,6 +1571,141 @@ function serializeForm() {
 }
 
 // addLandTypeRow removed (chat textarea replaces form fields)
+
+// 自然语言指令解析
+function parseNaturalLanguageCommand(raw) {
+  if (!raw) return null;
+  // 尝试JSON解析，成功则不是自然语言
+  try {
+    JSON.parse(raw);
+    return null;
+  } catch (_) {}
+
+  const text = raw.replace(/\s+/g, "");
+
+  // 匹配"列出/显示/查询...的..."或"...耕地/建设用地..."
+  const listPatterns = [
+    /(?:列出|显示|查询|找|搜索)(.*?)(耕地|建设用地|水体|林地|草地)/,
+    /(.*?)(耕地|建设用地|水体|林地|草地).*?(?:情况|分布|信息)/,
+  ];
+
+  for (const pattern of listPatterns) {
+    const match = text.match(pattern);
+    if (match) {
+      const region = match[1].replace(/的|在|位于|请|把|将|给我/g, "");
+      const landType = match[2];
+      return { type: "list", region, landType, raw };
+    }
+  }
+
+  return null;
+}
+
+// 执行"列出某地类"指令
+function executeListCommand(command) {
+  showLoading();
+  return fetch("/api/parcels")
+    .then((r) => r.json())
+    .then((geojson) => {
+      const features = geojson.features || [];
+      const matched = [];
+
+      for (const feature of features) {
+        const props = feature.properties || {};
+        const location = props.location || "";
+        const landTypes = props.land_types || [];
+        const dominantType = props.dominant_type || "";
+
+        // 区域匹配：location 包含 command.region
+        const regionMatch = !command.region || location.includes(command.region);
+        // 地类匹配：dominant_type 是 command.landType，或 land_types 中包含
+        const typeMatch =
+          dominantType === command.landType ||
+          landTypes.some((lt) => lt.type === command.landType);
+
+        if (regionMatch && typeMatch) {
+          matched.push({
+            parcel_id: props.parcel_id,
+            location: location,
+            dominant_type: dominantType,
+            total_area_m2: props.total_area_m2,
+            land_types: landTypes,
+            triggered_rules_count: props.triggered_rules_count || 0,
+            overall_risk_level: props.overall_risk_level || "无特殊关注",
+          });
+        }
+      }
+
+      renderParcelList(matched, command);
+      const ids = matched.map((m) => m.parcel_id);
+      highlightParcels(ids);
+    })
+    .catch((err) => showError(err));
+}
+
+// 渲染图斑列表
+function renderParcelList(parcels, command) {
+  const container = document.getElementById("complianceOutput");
+
+  if (parcels.length === 0) {
+    container.innerHTML = `<p class="placeholder">未找到${command.region ? command.region + "的" : ""}${command.landType}图斑</p>`;
+    return;
+  }
+
+  let html = `<div class="result-header">
+    <div class="parcel-id">查询结果</div>
+    <div class="parcel-meta">${command.region || "全部区域"} · ${command.landType}</div>
+    <span class="risk-badge">共 ${parcels.length} 个图斑</span>
+  </div>`;
+
+  html += `<div class="result-section">
+    <div class="result-section-title">图斑列表</div>`;
+
+  parcels.forEach((p) => {
+    const landDesc = (p.land_types || [])
+      .map((lt) => `${lt.type}(${Math.round(lt.ratio * 100)}%)`)
+      .join("、");
+    html += `<div class="rule-card" style="cursor:pointer" onclick="highlightParcelById('${p.parcel_id}')">
+      <div style="font-weight:bold">${p.parcel_id}</div>
+      <div style="font-size:12px;color:#666;margin-top:4px">
+        ${p.location} | ${p.dominant_type} | ${p.total_area_m2}m²<br>
+        地类构成：${landDesc}
+      </div>
+    </div>`;
+  });
+
+  html += `</div>`;
+  container.innerHTML = html;
+}
+
+// 高亮多个图斑
+function highlightParcels(parcelIds) {
+  if (!parcelsDataSource) return;
+  const entities = parcelsDataSource.entities.values;
+  const matched = [];
+
+  for (const entity of entities) {
+    const eid = entity.properties.parcel_id?.getValue();
+    if (parcelIds.includes(eid)) {
+      if (entity.polygon) {
+        entity.polygon.material = Cesium.Color.fromCssColorString("#FFFF00").withAlpha(0.7);
+      }
+      matched.push(entity);
+    } else {
+      // 恢复原始颜色
+      const risk = entity.properties.overall_risk_level?.getValue() || "无特殊关注";
+      if (entity.polygon) {
+        entity.polygon.material = RISK_COLORS[risk] || RISK_COLORS["无特殊关注"];
+      }
+    }
+  }
+
+  highlightedEntity = matched.length > 0 ? matched[0] : null;
+
+  if (matched.length > 0) {
+    viewer.flyTo(matched, { duration: 1.5 });
+  }
+}
 
 function onCompareSubmit(e) {
   e.preventDefault();
@@ -1712,13 +1870,18 @@ function renderComparisonResult(report) {
 function highlightParcelById(parcelId) {
   if (!parcelsDataSource) return;
   const entities = parcelsDataSource.entities.values;
+
+  // 先恢复所有实体颜色
+  for (const entity of entities) {
+    const risk = entity.properties.overall_risk_level?.getValue() || "无特殊关注";
+    if (entity.polygon) {
+      entity.polygon.material = RISK_COLORS[risk] || RISK_COLORS["无特殊关注"];
+    }
+  }
+
   for (const entity of entities) {
     const eid = entity.properties.parcel_id?.getValue();
     if (eid === parcelId) {
-      if (highlightedEntity && highlightedEntity.polygon) {
-        const prevRisk = highlightedEntity.properties.overall_risk_level?.getValue() || "无特殊关注";
-        highlightedEntity.polygon.material = RISK_COLORS[prevRisk] || RISK_COLORS["无特殊关注"];
-      }
       if (entity.polygon) {
         entity.polygon.material = Cesium.Color.fromCssColorString("#FFFF00").withAlpha(0.7);
       }

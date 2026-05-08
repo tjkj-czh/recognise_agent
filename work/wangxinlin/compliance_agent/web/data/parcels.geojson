@@ -113,8 +113,8 @@
         "parcel_id": "P20240103",
         "location": "浙江省杭州市西湖区",
         "total_area_m2": 5000,
-        "dominant_type": "水体",
-        "is_mixed": false
+        "dominant_type": "耕地",
+        "is_mixed": true
       },
       "geometry": {
         "type": "Polygon",

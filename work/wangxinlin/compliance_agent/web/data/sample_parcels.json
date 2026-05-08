@@ -30,11 +30,11 @@
     "location": "浙江省杭州市西湖区",
     "total_area_m2": 5000,
     "land_types": [
-      {"type": "水体", "area_m2": 3500, "ratio": 0.7, "confidence": 0.55},
+      {"type": "耕地", "area_m2": 3500, "ratio": 0.7, "confidence": 0.92},
       {"type": "草地", "area_m2": 1500, "ratio": 0.3, "confidence": 0.82}
     ],
-    "low_confidence_areas": ["水体边界区域", "图斑整体影像质量一般"],
-    "dominant_type": "水体",
-    "is_mixed": false
+    "low_confidence_areas": ["图斑北部边缘区域"],
+    "dominant_type": "耕地",
+    "is_mixed": true
   }
 ]
