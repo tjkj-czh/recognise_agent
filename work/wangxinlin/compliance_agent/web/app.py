@@ -30,6 +30,12 @@ def _load_parcels_geojson() -> dict:
         return json.load(f)
 
 
+def _load_land_segments() -> dict:
+    path = os.path.join(DATA_DIR, "land_segments.geojson")
+    with open(path, "r", encoding="utf-8") as f:
+        return json.load(f)
+
+
 def create_app():
     app = Flask(__name__,
                 template_folder=os.path.join(WEB_DIR, "templates"),
@@ -67,6 +73,11 @@ def create_app():
         triggered = evaluate_rules(parcel)
         report = build_report(parcel, triggered)
         return jsonify(report)
+
+    @app.route("/api/land-segments")
+    def get_land_segments():
+        """返回浙江省地类分割GeoJSON。"""
+        return jsonify(_load_land_segments())
 
     @app.route("/api/analyze", methods=["POST"])
     def analyze():

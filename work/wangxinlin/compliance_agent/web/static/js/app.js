@@ -14,8 +14,26 @@ const RISK_COLORS_CSS = {
   "无特殊关注": "#9E9E9E",
 };
 
+const LAND_TYPE_COLORS = {
+  "耕地": Cesium.Color.fromCssColorString("#F9A825").withAlpha(0.55),
+  "建设用地": Cesium.Color.fromCssColorString("#E53935").withAlpha(0.55),
+  "水体": Cesium.Color.fromCssColorString("#1E88E5").withAlpha(0.55),
+  "林地": Cesium.Color.fromCssColorString("#2E7D32").withAlpha(0.55),
+  "草地": Cesium.Color.fromCssColorString("#7CB342").withAlpha(0.55),
+};
+
+const LAND_TYPE_COLORS_CSS = {
+  "耕地": "#F9A825",
+  "建设用地": "#E53935",
+  "水体": "#1E88E5",
+  "林地": "#2E7D32",
+  "草地": "#7CB342",
+};
+
 let viewer, parcelsDataSource, highlightedEntity;
 let satelliteLayer, hangzhouEntity;
+let landSegmentsDataSource = null;
+let currentViewMode = "risk";
 
 // 杭州市行政边界（原始坐标，共1668个拐点，来源：阿里云 DataV / 高德开放平台 GeoJSON）
 const HANGZHOU_BOUNDARY = [
@@ -859,13 +877,19 @@ const HANGZHOU_BOUNDARY = [
 document.addEventListener("DOMContentLoaded", () => {
   initCesium();
   initForm();
-  initMapToggle();
+  initUploadAreas();
 });
 
 function initCesium() {
   Cesium.Ion.defaultAccessToken = undefined;
 
-  // 卫星影像底图（高德卫星，国内最清晰稳定）
+  // 底层：ESRI World Imagery（覆盖全球含极地，地理投影）
+  const esriWorldImagery = new Cesium.UrlTemplateImageryProvider({
+    url: "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
+    maximumLevel: 19,
+  });
+
+  // 上层：卫星影像底图（高德卫星，国内最清晰稳定，Mercator 投影极地无瓦片）
   const satelliteImagery = new Cesium.UrlTemplateImageryProvider({
     url: "https://webst0{s}.is.autonavi.com/appmaptile?style=6&x={x}&y={y}&z={z}",
     subdomains: "1234",
@@ -884,29 +908,25 @@ function initCesium() {
     fullscreenButton: false,
     infoBox: false,
     selectionIndicator: true,
-    baseLayer: satelliteLayer,
+    baseLayer: false,
     terrain: undefined,
-    skyBox: new Cesium.SkyBox({
-      sources: {
-        positiveX: Cesium.buildModuleUrl("Assets/Textures/SkyBox/tycho2t3_80_px.jpg"),
-        negativeX: Cesium.buildModuleUrl("Assets/Textures/SkyBox/tycho2t3_80_mx.jpg"),
-        positiveY: Cesium.buildModuleUrl("Assets/Textures/SkyBox/tycho2t3_80_py.jpg"),
-        negativeY: Cesium.buildModuleUrl("Assets/Textures/SkyBox/tycho2t3_80_my.jpg"),
-        positiveZ: Cesium.buildModuleUrl("Assets/Textures/SkyBox/tycho2t3_80_pz.jpg"),
-        negativeZ: Cesium.buildModuleUrl("Assets/Textures/SkyBox/tycho2t3_80_mz.jpg"),
-      },
-    }),
+    skyBox: false,
     skyAtmosphere: new Cesium.SkyAtmosphere(),
   });
+
+  // 底层：ESRI 全球影像（极地有覆盖）
+  viewer.imageryLayers.addImageryProvider(esriWorldImagery);
+  // 上层：高德卫星（中低纬度覆盖更清晰，极地无瓦片则透出底层 ESRI）
+  viewer.imageryLayers.addImageryProvider(satelliteImagery);
 
   // 异步加载真实地形（ArcGIS 全球高程）
   loadTerrain();
 
   // 星空与光照
-  viewer.scene.skyBox.show = true;
-  viewer.scene.skyAtmosphere.show = false;
   viewer.scene.backgroundColor = Cesium.Color.BLACK;
   viewer.scene.globe.enableLighting = true;
+  viewer.scene.globe.baseColor = Cesium.Color.fromCssColorString("#1a3a5c");
+  viewer.scene.globe.showGroundAtmosphere = false;
 
   // 初始视角：太空卫星视角看地球
   viewer.camera.setView({
@@ -926,7 +946,9 @@ function initCesium() {
   addStarField();
   loadZhejiangBoundaries();
   loadParcels();
+  loadLandSegments();
   addLegend();
+  addViewModeToggle();
   addBackToSpaceBtn();
   addResetNorthBtn();
 }
@@ -971,21 +993,41 @@ function addStarField() {
 }
 
 function loadZhejiangBoundaries() {
-  // 浙江省行政边界（细黄线）
+  // 浙江省行政边界
   const zhejiangDs = new Cesium.GeoJsonDataSource("浙江省");
   zhejiangDs
     .load("https://geo.datav.aliyun.com/areas_v3/bound/330000.json", {
       stroke: Cesium.Color.YELLOW,
-      strokeWidth: 1.5,
+      strokeWidth: 1,
       fill: Cesium.Color.TRANSPARENT,
     })
     .then(() => {
       viewer.dataSources.add(zhejiangDs);
-      console.log("[边界] 浙江省加载成功, entities:", zhejiangDs.entities.values.length);
+      // 提取 polygon 坐标，画一条粗发光黄线，关掉 polygon outline 避免双线
+      zhejiangDs.entities.values.forEach((entity) => {
+        if (entity.polygon) {
+          entity.polygon.outline = false;
+          const hierarchy = entity.polygon.hierarchy.getValue(Cesium.JulianDate.now());
+          if (hierarchy && hierarchy.positions) {
+            viewer.entities.add({
+              polyline: {
+                positions: hierarchy.positions,
+                width: 4,
+                material: new Cesium.PolylineGlowMaterialProperty({
+                  glowPower: 0.15,
+                  color: Cesium.Color.YELLOW,
+                }),
+                clampToGround: true,
+              },
+            });
+          }
+        }
+      });
+      console.log("[边界] 浙江省加载成功");
     })
     .catch((err) => console.error("[边界] 浙江省加载失败:", err));
 
-  // 浙江省内各市边界（细黄线）
+  // 浙江省内各市边界
   const cities = [
     { code: "330100", name: "杭州市" },
     { code: "330200", name: "宁波市" },
@@ -1003,32 +1045,25 @@ function loadZhejiangBoundaries() {
   cities.forEach((city) => {
     const ds = new Cesium.GeoJsonDataSource(city.name);
     ds.load(`https://geo.datav.aliyun.com/areas_v3/bound/${city.code}.json`, {
-      stroke: Cesium.Color.CYAN,
-      strokeWidth: 1.5,
+      stroke: Cesium.Color.YELLOW,
+      strokeWidth: 1,
       fill: Cesium.Color.TRANSPARENT,
     })
       .then(() => {
         viewer.dataSources.add(ds);
-        console.log("[边界]", city.name, "加载成功, entities:", ds.entities.values.length);
-
-        // 杭州市已有本地粗边界，跳过增强
-        if (city.name === "杭州市") return;
-
-        // 为其他市添加与杭州市一致的粗边界线
+        // 关掉 polygon outline，改画粗发光黄线（单线）
         ds.entities.values.forEach((entity) => {
           if (entity.polygon) {
-            entity.polygon.outline = true;
-            entity.polygon.outlineColor = Cesium.Color.CYAN.withAlpha(0.85);
+            entity.polygon.outline = false;
             const hierarchy = entity.polygon.hierarchy.getValue(Cesium.JulianDate.now());
             if (hierarchy && hierarchy.positions) {
               viewer.entities.add({
-                name: city.name + "边界线",
                 polyline: {
                   positions: hierarchy.positions,
                   width: 3,
                   material: new Cesium.PolylineGlowMaterialProperty({
-                    glowPower: 0.2,
-                    color: Cesium.Color.CYAN.withAlpha(0.9),
+                    glowPower: 0.15,
+                    color: Cesium.Color.YELLOW,
                   }),
                   clampToGround: true,
                 },
@@ -1036,6 +1071,7 @@ function loadZhejiangBoundaries() {
             }
           }
         });
+        console.log("[边界]", city.name, "加载成功");
       })
       .catch((err) => console.error("[边界]", city.name, "加载失败:", err));
   });
@@ -1071,18 +1107,16 @@ function drawHangzhouBoundary() {
     name: "杭州市",
     polygon: {
       hierarchy: new Cesium.PolygonHierarchy(positions),
-      material: Cesium.Color.CYAN.withAlpha(0.06),
-      outline: true,
-      outlineColor: Cesium.Color.CYAN.withAlpha(0.85),
-      outlineWidth: 3,
+      material: Cesium.Color.TRANSPARENT,
+      outline: false,
       height: 0,
     },
     polyline: {
       positions: positions,
-      width: 3,
+      width: 4,
       material: new Cesium.PolylineGlowMaterialProperty({
-        glowPower: 0.2,
-        color: Cesium.Color.CYAN.withAlpha(0.9),
+        glowPower: 0.15,
+        color: Cesium.Color.YELLOW,
       }),
       clampToGround: true,
     },
@@ -1102,6 +1136,7 @@ function drawHangzhouBoundary() {
 function addLegend() {
   const legend = document.createElement("div");
   legend.className = "map-legend";
+  legend.id = "mapLegend";
   legend.innerHTML = `
     <h4>风险等级</h4>
     <div class="legend-item"><span class="legend-color" style="background:#4CAF50"></span>一般关注</div>
@@ -1110,6 +1145,104 @@ function addLegend() {
     <div class="legend-item"><span class="legend-color" style="background:#9E9E9E"></span>无特殊关注</div>
   `;
   document.getElementById("cesiumContainer").appendChild(legend);
+}
+
+function updateLegend(mode) {
+  const legend = document.getElementById("mapLegend");
+  if (!legend) return;
+  if (mode === "risk") {
+    legend.innerHTML = `
+      <h4>风险等级</h4>
+      <div class="legend-item"><span class="legend-color" style="background:#4CAF50"></span>一般关注</div>
+      <div class="legend-item"><span class="legend-color" style="background:#FF9800"></span>重点关注</div>
+      <div class="legend-item"><span class="legend-color" style="background:#F44336"></span>建议复核</div>
+      <div class="legend-item"><span class="legend-color" style="background:#9E9E9E"></span>无特殊关注</div>
+    `;
+  } else {
+    legend.innerHTML = `
+      <h4>地类分割 (AI识别)</h4>
+      <div class="legend-item"><span class="legend-color" style="background:#F9A825"></span>耕地</div>
+      <div class="legend-item"><span class="legend-color" style="background:#E53935"></span>建设用地</div>
+      <div class="legend-item"><span class="legend-color" style="background:#1E88E5"></span>水体</div>
+      <div class="legend-item"><span class="legend-color" style="background:#2E7D32"></span>林地</div>
+      <div class="legend-item"><span class="legend-color" style="background:#7CB342"></span>草地</div>
+    `;
+  }
+}
+
+function addViewModeToggle() {
+  const container = document.createElement("div");
+  container.className = "view-mode-toggle";
+  container.innerHTML = `
+    <button class="view-mode-btn active" data-mode="risk">风险视图</button>
+    <button class="view-mode-btn" data-mode="landtype">地类分割</button>
+  `;
+  container.querySelectorAll(".view-mode-btn").forEach((btn) => {
+    btn.addEventListener("click", () => switchViewMode(btn.dataset.mode));
+  });
+  document.getElementById("cesiumContainer").appendChild(container);
+}
+
+function switchViewMode(mode) {
+  currentViewMode = mode;
+  if (parcelsDataSource) parcelsDataSource.show = (mode === "risk");
+  if (landSegmentsDataSource) landSegmentsDataSource.show = (mode === "landtype");
+  updateLegend(mode);
+  document.querySelectorAll(".view-mode-btn").forEach((btn) => {
+    btn.classList.toggle("active", btn.dataset.mode === mode);
+  });
+}
+
+function loadLandSegments() {
+  fetch("/api/land-segments")
+    .then((r) => r.json())
+    .then((geojson) => {
+      landSegmentsDataSource = new Cesium.GeoJsonDataSource("land_segments");
+      landSegmentsDataSource.load(geojson, {
+        stroke: Cesium.Color.fromCssColorString("#222222"),
+        strokeWidth: 1,
+        fill: Cesium.Color.GRAY.withAlpha(0.4),
+        clampToGround: true,
+      }).then(() => {
+        const entities = landSegmentsDataSource.entities.values;
+        for (const entity of entities) {
+          const landType = entity.properties.land_type?.getValue() || "林地";
+          const color = LAND_TYPE_COLORS[landType] || LAND_TYPE_COLORS["林地"];
+          if (entity.polygon) {
+            entity.polygon.material = color;
+          }
+        }
+        landSegmentsDataSource.show = false;
+        viewer.dataSources.add(landSegmentsDataSource);
+        console.log("[地类分割] 加载成功, 区县数:", entities.length);
+      });
+    })
+    .catch((err) => console.error("[地类分割] 加载失败:", err));
+}
+
+function showLandTypeInfo(entity) {
+  const container = document.getElementById("complianceOutput");
+  const name = entity.properties.district_name?.getValue() || "未知区县";
+  const city = entity.properties.city_name?.getValue() || "";
+  const landType = entity.properties.land_type?.getValue() || "未知";
+  const confidence = entity.properties.confidence?.getValue() || 0;
+  const cssColor = LAND_TYPE_COLORS_CSS[landType] || "#999";
+
+  container.innerHTML = `
+    <div class="land-type-info">
+      <div class="district-name">${name}</div>
+      <div style="font-size:12px;color:rgba(255,255,255,0.5);margin-top:2px">${city}</div>
+      <div style="margin-top:10px">
+        <span class="land-type-badge" style="background:${cssColor}">${landType}</span>
+      </div>
+      <div class="confidence">AI识别置信度: ${(confidence * 100).toFixed(0)}%</div>
+      <div style="margin-top:16px;font-size:13px;line-height:1.6;color:rgba(255,255,255,0.7)">
+        该区县经AI遥感识别，主导地类为<strong style="color:${cssColor}">${landType}</strong>，
+        置信度${(confidence * 100).toFixed(0)}%。
+        ${confidence < 0.8 ? "置信度较低，建议人工复核。" : "识别结果可信度较高。"}
+      </div>
+    </div>
+  `;
 }
 
 function addBackToSpaceBtn() {
@@ -1189,7 +1322,12 @@ function loadParcels() {
     const picked = viewer.scene.pick(click.position);
     if (Cesium.defined(picked) && picked.id) {
       const entity = picked.id;
-      onParcelClick(entity);
+      if (currentViewMode === "landtype" && entity.properties.land_type) {
+        showLandTypeInfo(entity);
+        viewer.flyTo(entity, { duration: 1 });
+      } else {
+        onParcelClick(entity);
+      }
     }
   }, Cesium.ScreenSpaceEventType.LEFT_CLICK);
 }
@@ -1221,7 +1359,7 @@ function onParcelClick(entity) {
 
 // === 结果渲染 ===
 function renderResult(report) {
-  const container = document.getElementById("resultContent");
+  const container = document.getElementById("complianceOutput");
 
   let html = `<div class="result-header">
     <div class="parcel-id">${report.parcel_id}</div>
@@ -1274,40 +1412,76 @@ function renderResult(report) {
   container.innerHTML = html;
 }
 
+function getActiveOutput() {
+  return document.getElementById("moduleCompliance").classList.contains("hidden")
+    ? document.getElementById("comparisonOutput")
+    : document.getElementById("complianceOutput");
+}
+
 function showLoading() {
-  document.getElementById("resultContent").innerHTML =
+  getActiveOutput().innerHTML =
     '<div class="loading">正在分析...</div>';
 }
 
 function showError(err) {
-  document.getElementById("resultContent").innerHTML =
+  getActiveOutput().innerHTML =
     `<p class="placeholder" style="color:#F44336">分析失败: ${err.message || err}</p>`;
 }
 
-function initMapToggle() {
-  const maximizeBtn = document.getElementById("maximizeBtn");
-  const restoreBtn = document.getElementById("restoreBtn");
-  if (!maximizeBtn || !restoreBtn) return;
+function initUploadAreas() {
+  document.querySelectorAll(".upload-area").forEach((area) => {
+    const fileInput = area.querySelector('input[type="file"]');
+    const hint = area.querySelector(".upload-hint");
 
-  maximizeBtn.addEventListener("click", () => {
-    document.body.classList.add("map-fullscreen");
-    maximizeBtn.classList.add("hidden");
-    restoreBtn.classList.remove("hidden");
-    if (viewer) viewer.resize();
+    area.addEventListener("dragover", (e) => {
+      e.preventDefault();
+      area.classList.add("dragover");
+    });
+    area.addEventListener("dragleave", () => area.classList.remove("dragover"));
+    area.addEventListener("drop", (e) => {
+      e.preventDefault();
+      area.classList.remove("dragover");
+      handleFiles(area, e.dataTransfer.files);
+    });
+    fileInput.addEventListener("change", () => {
+      handleFiles(area, fileInput.files);
+    });
   });
+}
 
-  restoreBtn.addEventListener("click", () => {
-    document.body.classList.remove("map-fullscreen");
-    restoreBtn.classList.add("hidden");
-    maximizeBtn.classList.remove("hidden");
-    if (viewer) viewer.resize();
-  });
+function handleFiles(area, files) {
+  let list = area.querySelector(".upload-file-list");
+  if (!list) {
+    list = document.createElement("div");
+    list.className = "upload-file-list";
+    area.appendChild(list);
+  }
+  list.innerHTML = "";
+  for (const f of files) {
+    const div = document.createElement("div");
+    div.textContent = f.name + " (" + (f.size / 1024).toFixed(1) + " KB)";
+    list.appendChild(div);
+  }
 }
 
 // === 表单逻辑 ===
 function initForm() {
   document.getElementById("parcelForm").addEventListener("submit", onFormSubmit);
   document.getElementById("addLandTypeBtn").addEventListener("click", addLandTypeRow);
+
+  // 模块切换
+  document.querySelectorAll(".module-tab").forEach((tab) => {
+    tab.addEventListener("click", () => {
+      document.querySelectorAll(".module-tab").forEach((t) => t.classList.remove("active"));
+      tab.classList.add("active");
+      const mod = tab.dataset.module;
+      document.getElementById("moduleCompliance").classList.toggle("hidden", mod !== "compliance");
+      document.getElementById("moduleComparison").classList.toggle("hidden", mod !== "comparison");
+    });
+  });
+
+  // 模块2：现状基底校核
+  document.getElementById("comparisonForm").addEventListener("submit", onCompareSubmit);
 }
 
 function onFormSubmit(e) {
@@ -1385,6 +1559,143 @@ function addLandTypeRow() {
     <input type="number" class="lt-conf" min="0" max="1" step="0.01" placeholder="置信度">
   `;
   container.appendChild(row);
+}
+
+function onCompareSubmit(e) {
+  e.preventDefault();
+  const btn = document.getElementById("compareBtn");
+  btn.disabled = true;
+  btn.textContent = "校核中...";
+
+  const baseType = document.getElementById("baseDominantType").value;
+  const compType = document.getElementById("compDominantType").value;
+  const baseArea = parseFloat(document.getElementById("baseTotalArea").value) || 0;
+  const compArea = parseFloat(document.getElementById("compTotalArea").value) || 0;
+  const areaDiff = compArea - baseArea;
+  const areaChangePct = baseArea > 0 ? ((areaDiff / baseArea) * 100).toFixed(1) : 0;
+
+  const checks = [];
+  if (document.getElementById("chkBoundary").checked) checks.push("边界范围变化");
+  if (document.getElementById("chkRoadWater").checked) checks.push("道路/水系/地块新增或消失");
+  if (document.getElementById("chkAdmin").checked) checks.push("行政区划/村镇界线调整");
+  if (document.getElementById("chkDiff").checked) checks.push("老旧数据与现状实景差异");
+
+  const results = [];
+
+  if (checks.includes("边界范围变化")) {
+    if (Math.abs(areaDiff) > baseArea * 0.01) {
+      results.push({
+        item: "边界范围变化",
+        status: "变化",
+        detail: `面积由 ${baseArea}m² 变为 ${compArea}m²，变化 ${areaDiff > 0 ? "+" : ""}${areaDiff}m²（${areaChangePct}%）`,
+        level: Math.abs(areaDiff) > baseArea * 0.1 ? "重点关注" : "一般关注",
+      });
+    } else {
+      results.push({ item: "边界范围变化", status: "无变化", detail: "面积变化在1%以内，边界范围基本一致", level: "无特殊关注" });
+    }
+  }
+
+  if (checks.includes("道路/水系/地块新增或消失")) {
+    if (baseType !== compType) {
+      results.push({
+        item: "道路/水系/地块变化",
+        status: "变化",
+        detail: `主导地类由"${baseType}"变为"${compType}"，存在地类新增或消失可能`,
+        level: "重点关注",
+      });
+    } else {
+      results.push({ item: "道路/水系/地块变化", status: "无变化", detail: "主导地类未发生变化", level: "无特殊关注" });
+    }
+  }
+
+  if (checks.includes("行政区划/村镇界线调整")) {
+    results.push({
+      item: "行政区划/村镇界线",
+      status: "需核实",
+      detail: "需结合最新行政区划数据比对界线是否调整",
+      level: "一般关注",
+    });
+  }
+
+  if (checks.includes("老旧数据与现状实景差异")) {
+    const baseSrc = document.getElementById("baseDataSource").value;
+    const compSrc = document.getElementById("compDataSource").value;
+    if (baseType !== compType || Math.abs(areaDiff) > baseArea * 0.05) {
+      results.push({
+        item: "老旧数据与现状差异",
+        status: "差异明显",
+        detail: `基准(${baseSrc})与比对(${compSrc})之间存在地类或面积显著差异，建议现场核实`,
+        level: "重点关注",
+      });
+    } else {
+      results.push({ item: "老旧数据与现状差异", status: "差异较小", detail: "基准与比对数据一致性较高", level: "一般关注" });
+    }
+  }
+
+  const hasFocus = results.some((r) => r.level === "重点关注");
+  const hasReview = results.some((r) => r.level === "重点关注" && r.status !== "无变化");
+  const overallRisk = hasReview ? "建议复核" : hasFocus ? "重点关注" : results.some((r) => r.level === "一般关注") ? "一般关注" : "无特殊关注";
+
+  const report = {
+    parcel_id: document.getElementById("compParcelId").value.trim(),
+    location: document.getElementById("compLocation").value.trim(),
+    overall_risk_level: overallRisk,
+    base_data_source: document.getElementById("baseDataSource").value,
+    comp_data_source: document.getElementById("compDataSource").value,
+    comparison_items: checks,
+    comparison_results: results,
+    summary: `校核完成，共检查 ${checks.length} 项，其中 ${results.filter((r) => r.status !== "无变化").length} 项存在变化/差异。`,
+    generated_at: new Date().toLocaleString("zh-CN"),
+  };
+
+  renderComparisonResult(report);
+  highlightParcelById(report.parcel_id);
+
+  btn.disabled = false;
+  btn.textContent = "提交校核";
+}
+
+function renderComparisonResult(report) {
+  const container = document.getElementById("comparisonOutput");
+
+  let html = `
+    <div class="result-header">
+      <div class="parcel-id">${report.parcel_id}</div>
+      <div class="parcel-meta">${report.location} · 现状基底校核</div>
+      <span class="risk-badge risk-badge-${report.overall_risk_level}">${report.overall_risk_level}</span>
+    </div>
+    <div class="result-section">
+      <div class="result-section-title">数据来源</div>
+      <div class="summary-text" style="font-size:12px">
+        基准：${report.base_data_source}<br>
+        比对：${report.comp_data_source}
+      </div>
+    </div>
+    <div class="result-section">
+      <div class="result-section-title">校核结果</div>
+  `;
+
+  for (const r of report.comparison_results) {
+    const levelClass = r.level === "重点关注" ? "suspected" : r.level === "一般关注" ? "attention" : r.level === "建议复核" ? "review" : "";
+    html += `
+      <div class="rule-card" data-type="${r.level === '重点关注' ? '疑似' : r.level === '建议复核' ? '建议复核' : '关注'}">
+        <strong class="result-section-title ${levelClass}">${r.item}</strong>
+        <div style="margin-top:4px"><span class="risk-badge risk-badge-${r.level}" style="font-size:11px;padding:1px 8px">${r.status}</span></div>
+        <div style="margin-top:4px;font-size:12px;opacity:0.85">${r.detail}</div>
+      </div>
+    `;
+  }
+
+  html += `
+    </div>
+    <div class="result-section">
+      <div class="result-section-title">总结</div>
+      <div class="summary-text">${report.summary}</div>
+    </div>
+    <div class="generated-at">生成时间：${report.generated_at}</div>
+  `;
+
+  container.innerHTML = html;
 }
 
 function highlightParcelById(parcelId) {
