@@ -1003,13 +1003,39 @@ function loadZhejiangBoundaries() {
   cities.forEach((city) => {
     const ds = new Cesium.GeoJsonDataSource(city.name);
     ds.load(`https://geo.datav.aliyun.com/areas_v3/bound/${city.code}.json`, {
-      stroke: Cesium.Color.YELLOW,
+      stroke: Cesium.Color.CYAN,
       strokeWidth: 1.5,
       fill: Cesium.Color.TRANSPARENT,
     })
       .then(() => {
         viewer.dataSources.add(ds);
         console.log("[边界]", city.name, "加载成功, entities:", ds.entities.values.length);
+
+        // 杭州市已有本地粗边界，跳过增强
+        if (city.name === "杭州市") return;
+
+        // 为其他市添加与杭州市一致的粗边界线
+        ds.entities.values.forEach((entity) => {
+          if (entity.polygon) {
+            entity.polygon.outline = true;
+            entity.polygon.outlineColor = Cesium.Color.CYAN.withAlpha(0.85);
+            const hierarchy = entity.polygon.hierarchy.getValue(Cesium.JulianDate.now());
+            if (hierarchy && hierarchy.positions) {
+              viewer.entities.add({
+                name: city.name + "边界线",
+                polyline: {
+                  positions: hierarchy.positions,
+                  width: 3,
+                  material: new Cesium.PolylineGlowMaterialProperty({
+                    glowPower: 0.2,
+                    color: Cesium.Color.CYAN.withAlpha(0.9),
+                  }),
+                  clampToGround: true,
+                },
+              });
+            }
+          }
+        });
       })
       .catch((err) => console.error("[边界]", city.name, "加载失败:", err));
   });
