@@ -26,3 +26,13 @@ pnpm-debug.log*
 # =========================
 .DS_Store
 Thumbs.db
+
+# =========================
+# Python virtualenv & cache
+# =========================
+.venv/
+**/.venv/
+__pycache__/
+**/__pycache__/
+*.pyc
+

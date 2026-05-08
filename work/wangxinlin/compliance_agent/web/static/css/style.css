@@ -22,11 +22,19 @@ body { font-family: "Microsoft YaHei", "PingFang SC", sans-serif; background: #f
   color: #fff; background: rgba(255,255,255,0.15);
 }
 
-/* === 三栏布局 === */
-.three-column {
+/* === 主页面地图+右侧输入（7:3） === */
+.map-form-layout {
   display: grid;
-  grid-template-columns: 320px 1fr 340px;
+  grid-template-columns: 7fr 3fr;
   height: calc(100vh - 56px);
+}
+
+/* === 合规结果独立页布局 === */
+.results-layout {
+  height: calc(100vh - 56px);
+}
+.results-layout .panel {
+  height: 100%;
 }
 
 /* === 面板通用 === */
@@ -166,42 +174,42 @@ body { font-family: "Microsoft YaHei", "PingFang SC", sans-serif; background: #f
   width: 16px; height: 12px; border-radius: 2px; border: 1px solid rgba(0,0,0,0.1);
 }
 
-/* 地图最大化 / 恢复按钮 */
-.map-toggle-btn {
-  position: absolute; top: 12px; right: 12px; z-index: 10;
-  padding: 8px 16px; background: rgba(26,35,126,0.85); color: #fff;
-  font-size: 13px; font-weight: 600; border-radius: 6px; cursor: pointer;
-  border: none; font-family: inherit; transition: background 0.2s; user-select: none;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.25);
+/* 地图左下角图标按钮组 */
+.map-control-group {
+  position: absolute;
+  left: 12px;
+  bottom: 16px;
+  z-index: 12;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
 }
-.map-toggle-btn:hover { background: rgba(40,53,147,0.95); }
-.map-toggle-btn.hidden { display: none; }
+
+.map-icon-btn {
+  width: 38px;
+  height: 38px;
+  border: none;
+  border-radius: 8px;
+  background: rgba(26,35,126,0.88);
+  color: #fff;
+  font-size: 18px;
+  line-height: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  user-select: none;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.25);
+  transition: background 0.2s, transform 0.15s;
+}
+
+.map-icon-btn:hover {
+  background: rgba(40,53,147,0.95);
+  transform: translateY(-1px);
+}
+
+.map-icon-btn.hidden { display: none; }
 
 /* 全屏地图模式 */
-body.map-fullscreen .three-column { grid-template-columns: 1fr; }
-body.map-fullscreen .panel-left,
+body.map-fullscreen .map-form-layout { grid-template-columns: 1fr; }
 body.map-fullscreen .panel-right { display: none; }
-
-/* 返回卫星视角按钮 */
-.back-to-space-btn {
-  position: absolute; top: 12px; left: 12px; z-index: 10;
-  padding: 8px 16px; background: rgba(26,35,126,0.85); color: #fff;
-  font-size: 13px; font-weight: 600; border-radius: 6px; cursor: pointer;
-  font-family: inherit; transition: background 0.2s; user-select: none;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.25);
-}
-.back-to-space-btn:hover {
-  background: rgba(40,53,147,0.95);
-}
-
-/* 正北朝上按钮 */
-.reset-north-btn {
-  position: absolute; top: 52px; left: 12px; z-index: 10;
-  padding: 8px 16px; background: rgba(26,35,126,0.85); color: #fff;
-  font-size: 13px; font-weight: 600; border-radius: 6px; cursor: pointer;
-  font-family: inherit; transition: background 0.2s; user-select: none;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.25);
-}
-.reset-north-btn:hover {
-  background: rgba(40,53,147,0.95);
-}

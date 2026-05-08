@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>用地合规提示Agent</title>
+  <title>地类识别Agent</title>
   <script>window.CESIUM_BASE_URL = 'https://cdn.jsdelivr.net/npm/cesium@1.119/Build/Cesium/';</script>
   <script src="https://cdn.jsdelivr.net/npm/cesium@1.119/Build/Cesium/Cesium.js"></script>
   <link href="https://cdn.jsdelivr.net/npm/cesium@1.119/Build/Cesium/Widgets/widgets.css" rel="stylesheet">
@@ -11,26 +11,23 @@
 </head>
 <body>
   <header class="app-header">
-    <h1>用地合规提示Agent</h1>
-    <span class="subtitle">第二组 · 用地识别智能体 · 王新林</span>
+    <h1>地类识别Agent</h1>
     <nav class="header-nav">
       <a href="/" class="active">地图分析</a>
+      <a href="/results">合规分析结果</a>
       <a href="/eval">评测</a>
     </nav>
   </header>
-  <main class="three-column">
-    <!-- 左侧：合规分析结果 -->
-    <aside class="panel panel-left" id="resultPanel">
-      <h2>合规分析结果</h2>
-      <div id="resultContent">
-        <p class="placeholder">点击地图图斑或在右侧输入数据开始分析</p>
-      </div>
-    </aside>
-    <!-- 中间：三维地球 -->
+  <main class="map-form-layout">
+    <!-- 左侧：三维地球 -->
     <section class="panel panel-center" id="mapPanel">
       <div id="cesiumContainer"></div>
-      <button id="maximizeBtn" class="map-toggle-btn" title="最大化地图">&#9974; 最大化</button>
-      <button id="restoreBtn" class="map-toggle-btn hidden" title="恢复三栏">&#9974; 恢复</button>
+      <div id="mapControlGroup" class="map-control-group">
+        <button id="backToSpaceBtn" class="map-icon-btn" title="返回卫星视角" aria-label="返回卫星视角">🛰</button>
+        <button id="resetNorthBtn" class="map-icon-btn" title="正北朝上" aria-label="正北朝上">🧭</button>
+        <button id="maximizeBtn" class="map-icon-btn" title="地图最大化" aria-label="地图最大化">⛶</button>
+        <button id="restoreBtn" class="map-icon-btn hidden" title="恢复三栏布局" aria-label="恢复三栏布局">🗗</button>
+      </div>
     </section>
     <!-- 右侧：图斑数据输入 -->
     <aside class="panel panel-right" id="inputPanel">

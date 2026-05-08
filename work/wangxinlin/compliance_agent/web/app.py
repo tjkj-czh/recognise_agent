@@ -84,6 +84,11 @@ def create_app():
         report = build_report(parcel_data, triggered)
         return jsonify(report)
 
+    @app.route("/results")
+    def results_page():
+        """合规分析结果页面。"""
+        return render_template("results.html")
+
     @app.route("/eval")
     def eval_page():
         """评测样本集浏览页面。"""

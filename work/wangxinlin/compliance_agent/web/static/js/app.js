@@ -859,7 +859,7 @@ const HANGZHOU_BOUNDARY = [
 document.addEventListener("DOMContentLoaded", () => {
   initCesium();
   initForm();
-  initMapToggle();
+  initMapControls();
 });
 
 function initCesium() {
@@ -878,7 +878,7 @@ function initCesium() {
     timeline: false,
     baseLayerPicker: false,
     geocoder: false,
-    homeButton: true,
+    homeButton: false,
     sceneModePicker: false,
     navigationHelpButton: false,
     fullscreenButton: false,
@@ -927,8 +927,6 @@ function initCesium() {
   loadZhejiangBoundaries();
   loadParcels();
   addLegend();
-  addBackToSpaceBtn();
-  addResetNorthBtn();
 }
 
 async function loadTerrain() {
@@ -1195,7 +1193,9 @@ function onParcelClick(entity) {
 
 // === 结果渲染 ===
 function renderResult(report) {
+  persistLatestReport(report);
   const container = document.getElementById("resultContent");
+  if (!container) return;
 
   let html = `<div class="result-header">
     <div class="parcel-id">${report.parcel_id}</div>
@@ -1249,19 +1249,67 @@ function renderResult(report) {
 }
 
 function showLoading() {
-  document.getElementById("resultContent").innerHTML =
-    '<div class="loading">正在分析...</div>';
+  const container = document.getElementById("resultContent");
+  if (!container) return;
+  container.innerHTML = '<div class="loading">正在分析...</div>';
 }
 
 function showError(err) {
-  document.getElementById("resultContent").innerHTML =
-    `<p class="placeholder" style="color:#F44336">分析失败: ${err.message || err}</p>`;
+  const container = document.getElementById("resultContent");
+  if (!container) return;
+  container.innerHTML = `<p class="placeholder" style="color:#F44336">分析失败: ${err.message || err}</p>`;
 }
 
-function initMapToggle() {
+function persistLatestReport(report) {
+  try {
+    localStorage.setItem("latestComplianceReport", JSON.stringify(report));
+  } catch (e) {
+    console.warn("缓存分析结果失败:", e);
+  }
+}
+
+
+function initMapControls() {
   const maximizeBtn = document.getElementById("maximizeBtn");
   const restoreBtn = document.getElementById("restoreBtn");
-  if (!maximizeBtn || !restoreBtn) return;
+  const backToSpaceBtn = document.getElementById("backToSpaceBtn");
+  const resetNorthBtn = document.getElementById("resetNorthBtn");
+
+  if (!maximizeBtn || !restoreBtn || !backToSpaceBtn || !resetNorthBtn) return;
+
+  backToSpaceBtn.addEventListener("click", () => {
+    if (!viewer) return;
+    if (hangzhouEntity) {
+      viewer.entities.remove(hangzhouEntity);
+      hangzhouEntity = null;
+    }
+    viewer.camera.flyTo({
+      destination: Cesium.Cartesian3.fromDegrees(105, 25, 20000000),
+      orientation: {
+        heading: Cesium.Math.toRadians(10),
+        pitch: Cesium.Math.toRadians(-90),
+        roll: 0,
+      },
+      duration: 4,
+      complete: () => {
+        setTimeout(() => flyToHangzhou(), 2000);
+      },
+    });
+  });
+
+  resetNorthBtn.addEventListener("click", () => {
+    if (!viewer) return;
+    const currentPos = viewer.camera.position;
+    viewer.camera.flyTo({
+      destination: currentPos,
+      orientation: {
+        heading: Cesium.Math.toRadians(0),
+        pitch: Cesium.Math.toRadians(-90),
+        roll: 0,
+      },
+      duration: 1,
+    });
+  });
 
   maximizeBtn.addEventListener("click", () => {
     document.body.classList.add("map-fullscreen");
@@ -1277,6 +1325,7 @@ function initMapToggle() {
     if (viewer) viewer.resize();
   });
 }
+
 
 // === 表单逻辑 ===
 function initForm() {
