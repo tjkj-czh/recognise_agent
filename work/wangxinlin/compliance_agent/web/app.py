@@ -3,15 +3,21 @@
 import json
 import os
 import sys
+import uuid
+from pathlib import Path
+
+import numpy as np
+from PIL import Image
 
 # 确保项目根目录在sys.path中，使import config和rules可用
 PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, PROJECT_ROOT)
 
-from flask import Flask, render_template, request, jsonify
+from flask import Flask, render_template, request, jsonify, send_file
 
 from rules.compliance_rules import evaluate_rules
 from web.report_builder import build_report
+from skills.intent_recognition_skill import recognize_intent
 
 WEB_DIR = os.path.dirname(os.path.abspath(__file__))
 DATA_DIR = os.path.join(WEB_DIR, "data")
@@ -97,6 +103,16 @@ def create_app():
         report = build_report(parcel_data, triggered)
         return jsonify(report)
 
+    @app.route("/api/intent", methods=["POST"])
+    def recognize_intent_api():
+        """语义意图识别API：解析用户自然语言输入，返回意图和参数。"""
+        body = request.get_json() or {}
+        user_input = body.get("input", "")
+        if not user_input or not user_input.strip():
+            return jsonify({"error": "请提供输入文本"}), 400
+        result = recognize_intent(user_input)
+        return jsonify(result)
+
     @app.route("/eval")
     def eval_page():
         """评测样本集浏览页面。"""
@@ -180,6 +196,143 @@ def create_app():
             "category_stats": cat_stats,
             "results": results,
         })
+
+    # === 影像上传 / Cesium 叠加 / 分割任务 ===
+    UPLOAD_DIR = os.path.join(WEB_DIR, "uploads")
+    OVERLAY_DIR = os.path.join(WEB_DIR, "overlays")
+    os.makedirs(UPLOAD_DIR, exist_ok=True)
+    os.makedirs(OVERLAY_DIR, exist_ok=True)
+
+    def _process_imagery(src_path: str, image_id: str) -> dict:
+        """读取 GeoTIFF，生成 PNG 预览，返回元数据。"""
+        import rasterio
+        from rasterio.warp import transform_bounds
+
+        with rasterio.open(src_path) as src:
+            crs = str(src.crs) if src.crs else "Unknown"
+            rows, cols = src.height, src.width
+            bands = src.count
+
+            # 转换为 WGS-84 bbox
+            bounds = src.bounds
+            if src.crs and src.crs.to_epsg() != 4326:
+                bounds = transform_bounds(src.crs, "EPSG:4326", *bounds)
+            minx, miny, maxx, maxy = bounds
+
+            # 生成 PNG 预览（最大 1024x1024）
+            max_size = 1024
+            scale = min(1.0, max_size / max(rows, cols))
+            out_rows, out_cols = int(rows * scale), int(cols * scale)
+
+            if bands >= 3:
+                data = src.read([1, 2, 3], out_shape=(3, out_rows, out_cols))
+            else:
+                band = src.read(1, out_shape=(out_rows, out_cols))
+                data = np.stack([band, band, band], axis=0)
+
+            # 归一化到 0-255
+            data = data.astype(np.float32)
+            for i in range(3):
+                band = data[i]
+                valid = band[band > 0]
+                if len(valid) > 0:
+                    vmin, vmax = np.percentile(valid, [2, 98])
+                    if vmax > vmin:
+                        band = np.clip((band - vmin) / (vmax - vmin) * 255, 0, 255)
+                    else:
+                        band = np.clip(band / (band.max() + 1e-6) * 255, 0, 255)
+                else:
+                    band = np.zeros_like(band)
+                data[i] = band
+
+            data = data.astype(np.uint8).transpose(1, 2, 0)
+            img = Image.fromarray(data)
+            overlay_path = os.path.join(OVERLAY_DIR, f"{image_id}.png")
+            img.save(overlay_path, "PNG")
+
+            return {
+                "image_id": image_id,
+                "filename": os.path.basename(src_path),
+                "crs": crs,
+                "bbox": [minx, miny, maxx, maxy],
+                "rows": rows,
+                "cols": cols,
+                "bands": bands,
+                "overlay_url": f"/api/layers/{image_id}/overlay.png",
+            }
+
+    @app.route("/api/imagery/upload", methods=["POST"])
+    def upload_imagery():
+        if "file" not in request.files:
+            return jsonify({"error": "请上传文件"}), 400
+        file = request.files["file"]
+        if file.filename == "":
+            return jsonify({"error": "文件名不能为空"}), 400
+
+        image_id = str(uuid.uuid4())[:12]
+        ext = Path(file.filename).suffix.lower()
+        if ext not in {".tif", ".tiff"}:
+            return jsonify({"error": "仅支持 GeoTIFF 格式 (.tif/.tiff)"}), 400
+
+        src_path = os.path.join(UPLOAD_DIR, f"{image_id}{ext}")
+        file.save(src_path)
+
+        try:
+            meta = _process_imagery(src_path, image_id)
+            return jsonify(meta)
+        except Exception as e:
+            return jsonify({"error": f"影像处理失败: {str(e)}"}), 500
+
+    @app.route("/api/layers/<image_id>/overlay.png")
+    def get_overlay_png(image_id):
+        path = os.path.join(OVERLAY_DIR, f"{image_id}.png")
+        if not os.path.exists(path):
+            return jsonify({"error": "预览图不存在"}), 404
+        return send_file(path, mimetype="image/png")
+
+    @app.route("/api/layers/<image_id>/overlay")
+    def get_overlay_meta(image_id):
+        path = os.path.join(OVERLAY_DIR, f"{image_id}.png")
+        if not os.path.exists(path):
+            return jsonify({"error": "预览图不存在"}), 404
+        import glob
+        src_files = glob.glob(os.path.join(UPLOAD_DIR, f"{image_id}.*"))
+        if not src_files:
+            return jsonify({"error": "源文件不存在"}), 404
+        import rasterio
+        from rasterio.warp import transform_bounds
+        with rasterio.open(src_files[0]) as src:
+            bounds = src.bounds
+            if src.crs and src.crs.to_epsg() != 4326:
+                bounds = transform_bounds(src.crs, "EPSG:4326", *bounds)
+            minx, miny, maxx, maxy = bounds
+        return jsonify({
+            "image_id": image_id,
+            "bbox": [minx, miny, maxx, maxy],
+            "overlay_url": f"/api/layers/{image_id}/overlay.png",
+        })
+
+    # 任务占位
+    tasks_db = {}
+
+    @app.route("/api/tasks/segment", methods=["POST"])
+    def start_segmentation():
+        body = request.get_json() or {}
+        image_id = body.get("image_id")
+        if not image_id:
+            return jsonify({"error": "缺少 image_id"}), 400
+        task_id = f"seg_{uuid.uuid4().hex[:8]}"
+        tasks_db[task_id] = {"task_id": task_id, "status": "success", "image_id": image_id, "result_layer_id": image_id}
+        return jsonify({"task_id": task_id, "status": "success", "result_layer_id": image_id})
+
+    @app.route("/api/tasks/<task_id>")
+    def get_task(task_id):
+        task = tasks_db.get(task_id, {"task_id": task_id, "status": "failed", "error_message": "任务不存在"})
+        return jsonify(task)
+
+    @app.route("/api/layers/<image_id>/vectors.geojson")
+    def get_segment_geojson(image_id):
+        return jsonify({"type": "FeatureCollection", "features": []})
 
     return app
 

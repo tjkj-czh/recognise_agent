@@ -34,6 +34,7 @@ let viewer, parcelsDataSource, highlightedEntity;
 let satelliteLayer, hangzhouEntity;
 let landSegmentsDataSource = null;
 let currentViewMode = "risk";
+let overlayImageryLayer = null;
 
 // 杭州市行政边界（原始坐标，共1668个拐点，来源：阿里云 DataV / 高德开放平台 GeoJSON）
 const HANGZHOU_BOUNDARY = [
@@ -938,9 +939,9 @@ function initCesium() {
     },
   });
 
-  // 2秒后飞向杭州市
+  // 2秒后飞向浙江省
   setTimeout(() => {
-    flyToHangzhou();
+    flyToZhejiang();
   }, 2000);
 
   addStarField();
@@ -948,9 +949,15 @@ function initCesium() {
   loadParcels();
   loadLandSegments();
   addLegend();
-  addViewModeToggle();
+  // 创建左上角控件容器
+  const controlsContainer = document.createElement("div");
+  controlsContainer.className = "map-controls";
+  document.getElementById("cesiumContainer").appendChild(controlsContainer);
+
   addBackToSpaceBtn();
   addResetNorthBtn();
+  addResetZhejiangBtn();
+  addViewModeToggle();
 }
 
 async function loadTerrain() {
@@ -1077,6 +1084,17 @@ function loadZhejiangBoundaries() {
   });
 }
 
+function flyToZhejiang() {
+  // 绘制杭州市边界（保留边界可视化）
+  drawHangzhouBoundary();
+
+  // 飞到浙江省全景范围
+  viewer.camera.flyTo({
+    destination: Cesium.Rectangle.fromDegrees(118.0, 27.0, 122.5, 31.5),
+    duration: 4,
+  });
+}
+
 function flyToHangzhou() {
   // 绘制杭州市边界
   drawHangzhouBoundary();
@@ -1180,7 +1198,7 @@ function addViewModeToggle() {
   container.querySelectorAll(".view-mode-btn").forEach((btn) => {
     btn.addEventListener("click", () => switchViewMode(btn.dataset.mode));
   });
-  document.getElementById("cesiumContainer").appendChild(container);
+  document.querySelector(".map-controls").appendChild(container);
 }
 
 function switchViewMode(mode) {
@@ -1264,11 +1282,11 @@ function addBackToSpaceBtn() {
       },
       duration: 4,
       complete: () => {
-        setTimeout(() => flyToHangzhou(), 2000);
+        setTimeout(() => flyToZhejiang(), 2000);
       },
     });
   });
-  document.getElementById("cesiumContainer").appendChild(btn);
+  document.querySelector(".map-controls").appendChild(btn);
 }
 
 function addResetNorthBtn() {
@@ -1288,7 +1306,28 @@ function addResetNorthBtn() {
       duration: 1,
     });
   });
-  document.getElementById("cesiumContainer").appendChild(btn);
+
+  const row = document.createElement("div");
+  row.className = "map-btn-row";
+  row.appendChild(btn);
+  document.querySelector(".map-controls").appendChild(row);
+}
+
+function addResetZhejiangBtn() {
+  const btn = document.createElement("div");
+  btn.className = "reset-north-btn";
+  btn.textContent = "浙江全景";
+  btn.title = "回到浙江省全屏视图";
+  btn.addEventListener("click", () => {
+    flyToZhejiang();
+  });
+
+  const row = document.querySelector(".map-btn-row");
+  if (row) {
+    row.appendChild(btn);
+  } else {
+    document.querySelector(".map-controls").appendChild(btn);
+  }
 }
 
 function loadParcels() {
@@ -1461,6 +1500,97 @@ function handleFiles(area, files) {
     const div = document.createElement("div");
     div.textContent = f.name + " (" + (f.size / 1024).toFixed(1) + " KB)";
     list.appendChild(div);
+
+    // GeoTIFF 影像自动上传并叠加到地图
+    if (/\.(tif|tiff)$/i.test(f.name)) {
+      uploadAndOverlayImagery(f, div);
+    }
+  }
+}
+
+function uploadAndOverlayImagery(file, statusDiv) {
+  statusDiv.textContent += " — 正在上传影像...";
+  console.log("[影像上传] 开始上传:", file.name);
+  const formData = new FormData();
+  formData.append("file", file);
+
+  fetch("/api/imagery/upload", {
+    method: "POST",
+    body: formData,
+  })
+    .then((r) => {
+      console.log("[影像上传] HTTP 状态:", r.status);
+      if (!r.ok) {
+        return r.text().then((text) => {
+          throw new Error(`HTTP ${r.status}: ${text.slice(0, 200)}`);
+        });
+      }
+      return r.json();
+    })
+    .then((meta) => {
+      console.log("[影像上传] 返回数据:", meta);
+      if (meta.error) throw new Error(meta.error);
+      statusDiv.textContent += " — 上传成功，正在叠加...";
+
+      // 在右侧输出区显示影像信息（自动识别当前活动模块）
+      const container = getActiveOutput();
+      container.innerHTML = `
+        <div class="result-header">
+          <div class="parcel-id">影像上传成功</div>
+          <div class="parcel-meta">${meta.filename} | ${meta.cols}×${meta.rows} | ${meta.bands}波段</div>
+        </div>
+        <div class="result-section">
+          <div class="result-section-title">影像信息</div>
+          <p class="summary-text">坐标系: ${meta.crs}<br>范围: ${meta.bbox.map((v) => v.toFixed(4)).join(", ")}</p>
+        </div>`;
+
+      const absoluteUrl = window.location.origin + meta.overlay_url;
+      console.log("[影像上传] overlay URL:", absoluteUrl);
+      addImageryOverlay(meta.bbox, absoluteUrl);
+      console.log("[影像上传] 开始飞行到影像范围:", meta.bbox);
+      viewer.camera.flyTo({
+        destination: Cesium.Rectangle.fromDegrees(meta.bbox[0], meta.bbox[1], meta.bbox[2], meta.bbox[3]),
+        duration: 2,
+      });
+      statusDiv.textContent += " — 已叠加";
+    })
+    .catch((err) => {
+      statusDiv.textContent += " — 失败: " + err.message;
+      console.error("[影像上传] 失败:", err);
+      alert("影像上传失败: " + err.message);
+    });
+}
+
+function addImageryOverlay(bbox, overlayUrl) {
+  removeImageryOverlay();
+  const provider = new Cesium.SingleTileImageryProvider({
+    url: overlayUrl,
+    rectangle: Cesium.Rectangle.fromDegrees(bbox[0], bbox[1], bbox[2], bbox[3]),
+  });
+  overlayImageryLayer = viewer.imageryLayers.addImageryProvider(provider);
+
+  // 添加影像边界框高亮
+  window._overlayOutline && viewer.entities.remove(window._overlayOutline);
+  window._overlayOutline = viewer.entities.add({
+    rectangle: {
+      coordinates: Cesium.Rectangle.fromDegrees(bbox[0], bbox[1], bbox[2], bbox[3]),
+      material: Cesium.Color.TRANSPARENT,
+      outline: true,
+      outlineColor: Cesium.Color.fromCssColorString("#00FF00"),
+      outlineWidth: 3,
+      height: 10,
+    },
+  });
+}
+
+function removeImageryOverlay() {
+  if (overlayImageryLayer) {
+    viewer.imageryLayers.remove(overlayImageryLayer);
+    overlayImageryLayer = null;
+  }
+  if (window._overlayOutline) {
+    viewer.entities.remove(window._overlayOutline);
+    window._overlayOutline = null;
   }
 }
 
@@ -1500,10 +1630,96 @@ function onFormSubmit(e) {
 
   const raw = document.getElementById("complianceChat").value.trim();
 
-  // 自然语言指令解析
-  const command = parseNaturalLanguageCommand(raw);
-  if (command && command.type === "list") {
-    executeListCommand(command)
+  // 尝试 JSON 解析：如果是合法 JSON，直接进行分析
+  try {
+    const jsonData = JSON.parse(raw);
+    const parcelData = { ...jsonData };
+    showLoading();
+    fetch("/api/analyze", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(parcelData),
+    })
+      .then((r) => r.json())
+      .then((report) => {
+        renderResult(report);
+        highlightParcelById(parcelData.parcel_id);
+      })
+      .catch((err) => showError(err))
+      .finally(() => {
+        btn.disabled = false;
+        btn.textContent = "提交分析";
+      });
+    return;
+  } catch (_) {
+    // 不是 JSON，走语义识别流程
+  }
+
+  // 调用语义识别 Skill API
+  fetch("/api/intent", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ input: raw }),
+  })
+    .then((r) => r.json())
+    .then((result) => handleIntentResult(result, btn))
+    .catch((err) => {
+      console.error("[意图识别] API 调用失败，使用本地规则兜底:", err);
+      // API 失败时，使用本地简单规则兜底
+      const command = parseNaturalLanguageCommand(raw);
+      if (command && command.type === "list") {
+        executeListCommand(command)
+          .catch((err) => showError(err))
+          .finally(() => {
+            btn.disabled = false;
+            btn.textContent = "提交分析";
+          });
+      } else {
+        // 兜底：尝试序列化表单进行分析
+        const parcelData = serializeForm();
+        showLoading();
+        fetch("/api/analyze", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(parcelData),
+        })
+          .then((r) => r.json())
+          .then((report) => {
+            renderResult(report);
+            highlightParcelById(parcelData.parcel_id);
+          })
+          .catch((err) => showError(err))
+          .finally(() => {
+            btn.disabled = false;
+            btn.textContent = "提交分析";
+          });
+      }
+    });
+}
+
+// 根据语义识别结果分发处理
+function handleIntentResult(result, btn) {
+  const intent = result.intent;
+  const params = result.params || {};
+  const replyHint = result.reply_hint || "";
+  const confidence = result.confidence || 0;
+
+  console.log("[意图识别]", intent, params, "置信度:", confidence);
+
+  // 低置信度且未知意图时，兜底分析
+  if (intent === "unknown" || confidence < 0.3) {
+    const parcelData = serializeForm();
+    showLoading();
+    fetch("/api/analyze", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(parcelData),
+    })
+      .then((r) => r.json())
+      .then((report) => {
+        renderResult(report);
+        highlightParcelById(parcelData.parcel_id);
+      })
       .catch((err) => showError(err))
       .finally(() => {
         btn.disabled = false;
@@ -1512,24 +1728,174 @@ function onFormSubmit(e) {
     return;
   }
 
-  const parcelData = serializeForm();
-  showLoading();
-
-  fetch("/api/analyze", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(parcelData),
-  })
-    .then((r) => r.json())
-    .then((report) => {
-      renderResult(report);
-      highlightParcelById(parcelData.parcel_id);
-    })
-    .catch((err) => showError(err))
-    .finally(() => {
+  switch (intent) {
+    case "greeting":
+    case "help": {
+      const output = document.getElementById("complianceOutput");
+      output.innerHTML = `<div class="result-section"><div class="result-section-title">智能体助手</div><div class="summary-text">${replyHint.replace(/\n/g, "<br>")}</div></div>`;
       btn.disabled = false;
       btn.textContent = "提交分析";
+      break;
+    }
+
+    case "list_parcels": {
+      const command = {
+        type: "list",
+        region: params.region || "",
+        landType: params.land_type || "",
+        raw: result.raw_input,
+      };
+      executeListCommand(command)
+        .catch((err) => showError(err))
+        .finally(() => {
+          btn.disabled = false;
+          btn.textContent = "提交分析";
+        });
+      break;
+    }
+
+    case "zoom_map": {
+      if (params.region) {
+        flyToRegion(params.region);
+      }
+      const output = document.getElementById("complianceOutput");
+      output.innerHTML = `<div class="result-section"><div class="result-section-title">地图操作</div><div class="summary-text">${replyHint}</div></div>`;
+      btn.disabled = false;
+      btn.textContent = "提交分析";
+      break;
+    }
+
+    case "switch_view": {
+      if (params.view_mode) {
+        switchViewMode(params.view_mode);
+      }
+      const output = document.getElementById("complianceOutput");
+      output.innerHTML = `<div class="result-section"><div class="result-section-title">视图切换</div><div class="summary-text">${replyHint}</div></div>`;
+      btn.disabled = false;
+      btn.textContent = "提交分析";
+      break;
+    }
+
+    case "reset_view": {
+      if (params.region && params.region.includes("浙江")) {
+        flyToZhejiang();
+      } else {
+        backToSpace();
+      }
+      const output = document.getElementById("complianceOutput");
+      output.innerHTML = `<div class="result-section"><div class="result-section-title">视图重置</div><div class="summary-text">${replyHint}</div></div>`;
+      btn.disabled = false;
+      btn.textContent = "提交分析";
+      break;
+    }
+
+    case "switch_module": {
+      if (params.target_module) {
+        switchToModule(params.target_module);
+      }
+      const output = document.getElementById("complianceOutput");
+      output.innerHTML = `<div class="result-section"><div class="result-section-title">模块切换</div><div class="summary-text">${replyHint}</div></div>`;
+      btn.disabled = false;
+      btn.textContent = "提交分析";
+      break;
+    }
+
+    case "compare_base": {
+      switchToModule("comparison");
+      // 自动触发现状基底校核提交
+      setTimeout(() => {
+        document.getElementById("comparisonForm").dispatchEvent(new Event("submit"));
+      }, 300);
+      btn.disabled = false;
+      btn.textContent = "提交分析";
+      break;
+    }
+
+    case "analyze_compliance":
+    default: {
+      // 默认走合规分析
+      const parcelData = serializeForm();
+      showLoading();
+      fetch("/api/analyze", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(parcelData),
+      })
+        .then((r) => r.json())
+        .then((report) => {
+          renderResult(report);
+          highlightParcelById(parcelData.parcel_id);
+        })
+        .catch((err) => showError(err))
+        .finally(() => {
+          btn.disabled = false;
+          btn.textContent = "提交分析";
+        });
+      break;
+    }
+  }
+}
+
+// 飞到指定区域
+function flyToRegion(region) {
+  const regionCoords = {
+    "浙江省": [118.0, 27.0, 122.5, 31.5],
+    "杭州市": [118.5, 29.0, 120.8, 30.6],
+    "西湖区": [120.0, 30.1, 120.2, 30.3],
+    "宁波市": [121.3, 29.5, 122.2, 30.2],
+    "温州市": [119.5, 27.5, 121.2, 28.6],
+    "嘉兴市": [120.5, 30.4, 121.3, 31.1],
+    "湖州市": [119.5, 30.4, 120.5, 31.2],
+    "绍兴市": [120.3, 29.8, 121.3, 30.3],
+    "金华市": [119.3, 28.6, 120.8, 29.6],
+    "衢州市": [118.3, 28.3, 119.5, 29.3],
+    "舟山市": [121.8, 29.8, 123.0, 30.8],
+    "台州市": [120.8, 28.2, 122.2, 29.2],
+    "丽水市": [118.8, 27.5, 120.5, 28.8],
+  };
+  const bbox = regionCoords[region];
+  if (bbox) {
+    viewer.camera.flyTo({
+      destination: Cesium.Rectangle.fromDegrees(bbox[0], bbox[1], bbox[2], bbox[3]),
+      duration: 1.5,
     });
+  } else {
+    // 未找到精确坐标，尝试搜索图斑位置
+    fetch("/api/parcels")
+      .then((r) => r.json())
+      .then((geojson) => {
+        for (const f of geojson.features || []) {
+          const loc = f.properties?.location || "";
+          if (loc.includes(region)) {
+            const coords = f.geometry?.coordinates;
+            if (coords) {
+              let lngs = [], lats = [];
+              const rings = coords[0];
+              for (const p of rings) {
+                lngs.push(p[0]);
+                lats.push(p[1]);
+              }
+              const rect = Cesium.Rectangle.fromDegrees(
+                Math.min(...lngs), Math.min(...lats),
+                Math.max(...lngs), Math.max(...lats)
+              );
+              viewer.camera.flyTo({ destination: rect, duration: 1.5 });
+              return;
+            }
+          }
+        }
+      });
+  }
+}
+
+// 切换到指定模块
+function switchToModule(module) {
+  document.querySelectorAll(".module-tab").forEach((tab) => {
+    const isTarget = tab.dataset.module === module;
+    tab.classList.toggle("active", isTarget);
+  });
+  document.getElementById("moduleCompliance").classList.toggle("hidden", module !== "compliance");
+  document.getElementById("moduleComparison").classList.toggle("hidden", module !== "comparison");
 }
 
 function serializeForm() {

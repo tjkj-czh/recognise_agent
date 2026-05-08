@@ -36,3 +36,13 @@ __pycache__/
 **/__pycache__/
 *.pyc
 
+# =========================
+# Large / runtime assets
+# =========================
+*.tif
+*.tiff
+uploads/
+overlays/
+test_image.tif
+test_overlay.png
+
