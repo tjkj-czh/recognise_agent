@@ -1,0 +1,8 @@
+*.tif filter=lfs diff=lfs merge=lfs -text
+<<<<<<< HEAD
+*.tiff filter=lfs diff=lfs merge=lfs -text
+work/wangxinlin/compliance_agent/web/uploads/** filter=lfs diff=lfs merge=lfs -text
+work/wangxinlin/compliance_agent/web/overlays/** filter=lfs diff=lfs merge=lfs -text
+work/wangxinlin/tif/** filter=lfs diff=lfs merge=lfs -text
+=======
+>>>>>>> 6db1b0732de9dd8eaaa21290aa99c7b79f368f54

@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>评测样本集 - 用地识别智能体</title>
+  <link rel="stylesheet" href="/static/css/style.css" />
+  <link rel="stylesheet" href="/static/css/eval.css" />
+</head>
+<body>
+  <header class="app-header">
+    <h1>评测样本集</h1>
+    <nav class="header-nav">
+      <a href="/">地图分析</a>
+      <a href="/eval" class="active">评测</a>
+    </nav>
+  </header>
+
+  <main class="eval-layout">
+    <!-- 左侧：样本列表 -->
+    <aside class="panel eval-sidebar" id="sidebar">
+      <h2>评测样本 <span id="sampleCount" class="count-badge">0</span></h2>
+      <div class="filter-bar">
+        <button class="filter-btn active" data-cat="all">全部</button>
+        <button class="filter-btn" data-cat="normal">正常</button>
+        <button class="filter-btn" data-cat="boundary">边界</button>
+        <button class="filter-btn" data-cat="abnormal">异常</button>
+        <button class="filter-btn" data-cat="adversarial">对抗</button>
+        <button class="filter-btn" data-cat="robustness">鲁棒性</button>
+      </div>
+      <div id="sampleList" class="sample-list"></div>
+    </aside>
+
+    <!-- 右侧：详情 + 运行 -->
+    <section class="eval-main" id="mainPanel">
+      <div class="eval-actions">
+        <button id="runAllBtn" class="btn btn-primary">运行全部评测</button>
+        <button id="runCatBtn" class="btn btn-small" disabled>运行当前类别</button>
+      </div>
+
+      <!-- 汇总区域 -->
+      <div id="summaryPanel" class="summary-panel" style="display:none">
+        <h3>评测汇总</h3>
+        <div class="summary-grid" id="summaryGrid"></div>
+      </div>
+
+      <!-- 样本详情 -->
+      <div id="detailPanel">
+        <p class="placeholder">选择左侧样本查看详情，或点击"运行全部评测"</p>
+      </div>
+    </section>
+  </main>
+
+  <script src="/static/js/eval.js"></script>
+</body>
+</html>

@@ -1,0 +1,48 @@
+# =========================
+# Editor / IDE directories
+# =========================
+.claude/
+.codebuddy/
+.idea/
+.vscode/
+
+# =========================
+# Frontend dependencies
+# =========================
+web/node_modules/
+**/node_modules/
+
+# =========================
+# Logs & temp files
+# =========================
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# =========================
+# OS generated files
+# =========================
+.DS_Store
+Thumbs.db
+
+# =========================
+# Python virtualenv & cache
+# =========================
+.venv/
+**/.venv/
+__pycache__/
+**/__pycache__/
+*.pyc
+
+# =========================
+# Large / runtime assets (managed by Git LFS instead)
+# =========================
+# *.tif   -> tracked by Git LFS via .gitattributes
+# *.tiff  -> tracked by Git LFS via .gitattributes
+# uploads/ -> tracked by Git LFS via .gitattributes
+# overlays/ -> tracked by Git LFS via .gitattributes
+# test_overlay.png -> kept ignored (test artifact)
+test_overlay.png
+

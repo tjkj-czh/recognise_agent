@@ -1,0 +1,623 @@
+#!/usr/bin/env python3
+"""生成并提供评测结果复盘页。
+
+读取工作区目录，发现所有包含 outputs/ 的运行目录，把输出数据嵌入一份
+自包含 HTML 页面，并通过轻量 HTTP 服务提供查看。反馈会自动保存到
+工作区中的 feedback.json。
+
+用法：
+    python generate_review.py <工作区路径> [--port 端口] [--skill-name 名称]
+    python generate_review.py <工作区路径> --previous-workspace /path/to/old/workspace
+
+除了 Python 标准库外，无需额外依赖。
+"""
+
+import argparse
+import base64
+import json
+import mimetypes
+import os
+import re
+import signal
+import subprocess
+import sys
+import time
+import webbrowser
+from functools import partial
+from http.server import HTTPServer, BaseHTTPRequestHandler
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+
+from scripts.utils import (
+    configure_utf8_stdio,
+    load_structured_data,
+    read_utf8_text,
+    summarize_evaluation_plan,
+    write_utf8_text,
+)
+
+configure_utf8_stdio()
+
+# Files to exclude from output listings
+METADATA_FILES = {"transcript.md", "user_notes.md", "metrics.json"}
+
+# Extensions we render as inline text
+TEXT_EXTENSIONS = {
+    ".txt", ".md", ".json", ".csv", ".py", ".js", ".ts", ".tsx", ".jsx",
+    ".yaml", ".yml", ".xml", ".html", ".css", ".sh", ".rb", ".go", ".rs",
+    ".java", ".c", ".cpp", ".h", ".hpp", ".sql", ".r", ".toml",
+}
+
+# Extensions we render as inline images
+IMAGE_EXTENSIONS = {".png", ".jpg", ".jpeg", ".gif", ".svg", ".webp"}
+
+# MIME type overrides for common types
+MIME_OVERRIDES = {
+    ".svg": "image/svg+xml",
+    ".xlsx": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    ".docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    ".pptx": "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+}
+
+
+def default_companion_path(primary_output: Path, companion_name: str) -> Path:
+    """Choose a stable sibling path for the companion HTML artifact."""
+    if primary_output.name == companion_name:
+        return primary_output
+    return primary_output.with_name(companion_name)
+
+
+def run_companion_report(
+    workspace: Path,
+    *,
+    skill_name: str,
+    benchmark_path: Path | None,
+    eval_plan_path: Path | None,
+    allow_missing_eval_plan: bool,
+    output_path: Path,
+) -> None:
+    """Generate report.html so review/report stay paired by default."""
+    command = [
+        sys.executable,
+        str(Path(__file__).with_name("generate_report.py")),
+        str(workspace),
+        "--output",
+        str(output_path),
+        "--skill-name",
+        skill_name,
+        "--skip-companion-review",
+    ]
+    if benchmark_path:
+        command.extend(["--benchmark", str(benchmark_path)])
+    if eval_plan_path:
+        command.extend(["--eval-plan", str(eval_plan_path)])
+    if allow_missing_eval_plan:
+        command.append("--allow-missing-eval-plan")
+
+    result = subprocess.run(command, capture_output=True, text=True)
+    if result.returncode != 0:
+        output = (result.stdout or "") + (result.stderr or "")
+        raise RuntimeError(output.strip() or "generate_report.py failed")
+
+
+def get_mime_type(path: Path) -> str:
+    ext = path.suffix.lower()
+    if ext in MIME_OVERRIDES:
+        return MIME_OVERRIDES[ext]
+    mime, _ = mimetypes.guess_type(str(path))
+    return mime or "application/octet-stream"
+
+
+def find_runs(workspace: Path) -> list[dict]:
+    """Recursively find directories that contain an outputs/ subdirectory."""
+    runs: list[dict] = []
+    _find_runs_recursive(workspace, workspace, runs)
+    runs.sort(key=lambda r: (r.get("eval_id", float("inf")), r["id"]))
+    return runs
+
+
+def _find_runs_recursive(root: Path, current: Path, runs: list[dict]) -> None:
+    if not current.is_dir():
+        return
+
+    outputs_dir = current / "outputs"
+    if outputs_dir.is_dir():
+        run = build_run(root, current)
+        if run:
+            runs.append(run)
+        return
+
+    skip = {"node_modules", ".git", "__pycache__", "skill", "inputs"}
+    for child in sorted(current.iterdir()):
+        if child.is_dir() and child.name not in skip:
+            _find_runs_recursive(root, child, runs)
+
+
+def build_run(root: Path, run_dir: Path) -> dict | None:
+    """Build a run dict with prompt, outputs, and grading data."""
+    prompt = ""
+    eval_id = None
+    configuration = run_dir.parent.name if run_dir.parent != root else ""
+
+    # Try eval_metadata.json
+    for candidate in [run_dir / "eval_metadata.json", run_dir.parent / "eval_metadata.json"]:
+        if candidate.exists():
+            try:
+                metadata = json.loads(read_utf8_text(candidate))
+                prompt = metadata.get("prompt", "")
+                eval_id = metadata.get("eval_id")
+            except (json.JSONDecodeError, OSError):
+                pass
+            if prompt:
+                break
+
+    # Fall back to transcript.md
+    if not prompt:
+        for candidate in [run_dir / "transcript.md", run_dir / "outputs" / "transcript.md"]:
+            if candidate.exists():
+                try:
+                    text = read_utf8_text(candidate)
+                    match = re.search(r"## Eval Prompt\n\n([\s\S]*?)(?=\n##|$)", text)
+                    if match:
+                        prompt = match.group(1).strip()
+                except OSError:
+                    pass
+                if prompt:
+                    break
+
+    if not prompt:
+        prompt = "(未找到提示词)"
+
+    run_id = str(run_dir.relative_to(root)).replace("/", "-").replace("\\", "-")
+
+    # Collect output files
+    outputs_dir = run_dir / "outputs"
+    output_files: list[dict] = []
+    if outputs_dir.is_dir():
+        for f in sorted(outputs_dir.iterdir()):
+            if f.is_file() and f.name not in METADATA_FILES:
+                output_files.append(embed_file(f))
+
+    # Load grading if present
+    grading = None
+    for candidate in [run_dir / "grading.json", run_dir.parent / "grading.json"]:
+        if candidate.exists():
+            try:
+                grading = json.loads(read_utf8_text(candidate))
+            except (json.JSONDecodeError, OSError):
+                pass
+            if grading:
+                break
+
+    return {
+        "id": run_id,
+        "prompt": prompt,
+        "eval_id": eval_id,
+        "configuration": configuration,
+        "outputs": output_files,
+        "grading": grading,
+    }
+
+
+def embed_file(path: Path) -> dict:
+    """Read a file and return an embedded representation."""
+    ext = path.suffix.lower()
+    mime = get_mime_type(path)
+
+    if ext in TEXT_EXTENSIONS:
+        try:
+            content = read_utf8_text(path, errors="replace")
+        except OSError:
+            content = "(读取文件失败)"
+        return {
+            "name": path.name,
+            "type": "text",
+            "content": content,
+        }
+    elif ext in IMAGE_EXTENSIONS:
+        try:
+            raw = path.read_bytes()
+            b64 = base64.b64encode(raw).decode("ascii")
+        except OSError:
+            return {"name": path.name, "type": "error", "content": "(读取文件失败)"}
+        return {
+            "name": path.name,
+            "type": "image",
+            "mime": mime,
+            "data_uri": f"data:{mime};base64,{b64}",
+        }
+    elif ext == ".pdf":
+        try:
+            raw = path.read_bytes()
+            b64 = base64.b64encode(raw).decode("ascii")
+        except OSError:
+            return {"name": path.name, "type": "error", "content": "(读取文件失败)"}
+        return {
+            "name": path.name,
+            "type": "pdf",
+            "data_uri": f"data:{mime};base64,{b64}",
+        }
+    elif ext == ".xlsx":
+        try:
+            raw = path.read_bytes()
+            b64 = base64.b64encode(raw).decode("ascii")
+        except OSError:
+            return {"name": path.name, "type": "error", "content": "(读取文件失败)"}
+        return {
+            "name": path.name,
+            "type": "xlsx",
+            "data_b64": b64,
+        }
+    else:
+        # Binary / unknown — base64 download link
+        try:
+            raw = path.read_bytes()
+            b64 = base64.b64encode(raw).decode("ascii")
+        except OSError:
+            return {"name": path.name, "type": "error", "content": "(读取文件失败)"}
+        return {
+            "name": path.name,
+            "type": "binary",
+            "mime": mime,
+            "data_uri": f"data:{mime};base64,{b64}",
+        }
+
+
+def load_previous_iteration(workspace: Path) -> dict[str, dict]:
+    """Load previous iteration's feedback and outputs.
+
+    Returns a map of run_id -> {"feedback": str, "outputs": list[dict]}.
+    """
+    result: dict[str, dict] = {}
+
+    # Load feedback
+    feedback_map: dict[str, str] = {}
+    feedback_path = workspace / "feedback.json"
+    if feedback_path.exists():
+        try:
+            data = json.loads(read_utf8_text(feedback_path))
+            feedback_map = {
+                r["run_id"]: r["feedback"]
+                for r in data.get("reviews", [])
+                if r.get("feedback", "").strip()
+            }
+        except (json.JSONDecodeError, OSError, KeyError):
+            pass
+
+    # Load runs (to get outputs)
+    prev_runs = find_runs(workspace)
+    for run in prev_runs:
+        result[run["id"]] = {
+            "feedback": feedback_map.get(run["id"], ""),
+            "outputs": run.get("outputs", []),
+        }
+
+    # Also add feedback for run_ids that had feedback but no matching run
+    for run_id, fb in feedback_map.items():
+        if run_id not in result:
+            result[run_id] = {"feedback": fb, "outputs": []}
+
+    return result
+
+
+def generate_html(
+    runs: list[dict],
+    skill_name: str,
+    previous: dict[str, dict] | None = None,
+    benchmark: dict | None = None,
+    evaluation_plan: dict | None = None,
+) -> str:
+    """Generate the complete standalone HTML page with embedded data."""
+    template_path = Path(__file__).parent / "viewer.html"
+    template = read_utf8_text(template_path)
+
+    # Build previous_feedback and previous_outputs maps for the template
+    previous_feedback: dict[str, str] = {}
+    previous_outputs: dict[str, list[dict]] = {}
+    if previous:
+        for run_id, data in previous.items():
+            if data.get("feedback"):
+                previous_feedback[run_id] = data["feedback"]
+            if data.get("outputs"):
+                previous_outputs[run_id] = data["outputs"]
+
+    benchmark_payload = benchmark
+    if benchmark_payload and evaluation_plan:
+        metadata = benchmark_payload.setdefault("metadata", {})
+        if isinstance(metadata, dict) and "evaluation_plan" not in metadata:
+            metadata["evaluation_plan"] = evaluation_plan
+
+    embedded = {
+        "skill_name": skill_name,
+        "runs": runs,
+        "previous_feedback": previous_feedback,
+        "previous_outputs": previous_outputs,
+    }
+    if benchmark_payload:
+        embedded["benchmark"] = benchmark_payload
+    if evaluation_plan:
+        embedded["evaluation_plan"] = evaluation_plan
+
+    data_json = json.dumps(embedded, ensure_ascii=False)
+
+    return template.replace("/*__EMBEDDED_DATA__*/", f"const EMBEDDED_DATA = {data_json};")
+
+
+# ---------------------------------------------------------------------------
+# HTTP server (stdlib only, zero dependencies)
+# ---------------------------------------------------------------------------
+
+def _kill_port(port: int) -> None:
+    """Kill any process listening on the given port."""
+    try:
+        result = subprocess.run(
+            ["lsof", "-ti", f":{port}"],
+            capture_output=True, text=True, timeout=5,
+        )
+        for pid_str in result.stdout.strip().split("\n"):
+            if pid_str.strip():
+                try:
+                    os.kill(int(pid_str.strip()), signal.SIGTERM)
+                except (ProcessLookupError, ValueError):
+                    pass
+        if result.stdout.strip():
+            time.sleep(0.5)
+    except subprocess.TimeoutExpired:
+        pass
+    except FileNotFoundError:
+        print("提示：未找到 lsof，无法检查端口是否已被占用", file=sys.stderr)
+
+class ReviewHandler(BaseHTTPRequestHandler):
+    """Serves the review HTML and handles feedback saves.
+
+    Regenerates the HTML on each page load so that refreshing the browser
+    picks up new eval outputs without restarting the server.
+    """
+
+    def __init__(
+        self,
+        workspace: Path,
+        skill_name: str,
+        feedback_path: Path,
+        previous: dict[str, dict],
+        benchmark_path: Path | None,
+        evaluation_plan: dict | None,
+        *args,
+        **kwargs,
+    ):
+        self.workspace = workspace
+        self.skill_name = skill_name
+        self.feedback_path = feedback_path
+        self.previous = previous
+        self.benchmark_path = benchmark_path
+        self.evaluation_plan = evaluation_plan
+        super().__init__(*args, **kwargs)
+
+    def do_GET(self) -> None:
+        if self.path == "/" or self.path == "/index.html":
+            # Regenerate HTML on each request (re-scans workspace for new outputs)
+            runs = find_runs(self.workspace)
+            benchmark = None
+            if self.benchmark_path and self.benchmark_path.exists():
+                try:
+                    benchmark = json.loads(read_utf8_text(self.benchmark_path))
+                except (json.JSONDecodeError, OSError):
+                    pass
+            html = generate_html(
+                runs,
+                self.skill_name,
+                self.previous,
+                benchmark,
+                self.evaluation_plan,
+            )
+            content = html.encode("utf-8")
+            self.send_response(200)
+            self.send_header("Content-Type", "text/html; charset=utf-8")
+            self.send_header("Content-Length", str(len(content)))
+            self.end_headers()
+            self.wfile.write(content)
+        elif self.path == "/api/feedback":
+            data = b"{}"
+            if self.feedback_path.exists():
+                data = self.feedback_path.read_bytes()
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Content-Length", str(len(data)))
+            self.end_headers()
+            self.wfile.write(data)
+        else:
+            self.send_error(404)
+
+    def do_POST(self) -> None:
+        if self.path == "/api/feedback":
+            length = int(self.headers.get("Content-Length", 0))
+            body = self.rfile.read(length)
+            try:
+                data = json.loads(body)
+                if not isinstance(data, dict) or "reviews" not in data:
+                    raise ValueError("需要一个包含 'reviews' 键的 JSON 对象")
+                write_utf8_text(self.feedback_path, json.dumps(data, indent=2) + "\n")
+                resp = b'{"ok":true}'
+                self.send_response(200)
+            except (json.JSONDecodeError, OSError, ValueError) as e:
+                resp = json.dumps({"error": str(e)}).encode()
+                self.send_response(500)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Content-Length", str(len(resp)))
+            self.end_headers()
+            self.wfile.write(resp)
+        else:
+            self.send_error(404)
+
+    def log_message(self, format: str, *args: object) -> None:
+        # Suppress request logging to keep terminal clean
+        pass
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser(description="生成并提供评测复盘页")
+    parser.add_argument("workspace", type=Path, help="工作区目录路径")
+    parser.add_argument("--port", "-p", type=int, default=3117, help="服务端口（默认：3117）")
+    parser.add_argument("--skill-name", "-n", type=str, default=None, help="页面头部显示的 skill 名称")
+    parser.add_argument(
+        "--previous-workspace", type=Path, default=None,
+        help="上一轮工作区路径（用于展示旧输出和旧反馈，作为对照上下文）",
+    )
+    parser.add_argument(
+        "--benchmark", type=Path, default=None,
+        help="benchmark.json 路径，用于在“基准”页签中展示量化结果",
+    )
+    parser.add_argument(
+        "--eval-plan",
+        type=Path,
+        default=None,
+        help="正式评估计划路径；如果 benchmark.json 里已经带了计划摘要，就可以不传",
+    )
+    parser.add_argument(
+        "--allow-missing-eval-plan",
+        action="store_true",
+        help="允许在没有正式评估计划的情况下继续生成复盘页（仅兼容旧数据，默认会直接拦住）",
+    )
+    parser.add_argument(
+        "--static", "-s", type=Path, default=None,
+        help="把独立 HTML 写到这个路径，而不是启动本地服务",
+    )
+    parser.add_argument(
+        "--skip-companion-report",
+        action="store_true",
+        help=argparse.SUPPRESS,
+    )
+    args = parser.parse_args()
+
+    workspace = args.workspace.resolve()
+    if not workspace.is_dir():
+        print(f"错误：{workspace} 不是目录", file=sys.stderr)
+        sys.exit(1)
+
+    runs = find_runs(workspace)
+    if not runs:
+        print(f"在 {workspace} 中未找到任何 run", file=sys.stderr)
+        sys.exit(1)
+
+    skill_name = args.skill_name or workspace.name.replace("-workspace", "")
+    feedback_path = workspace / "feedback.json"
+
+    previous: dict[str, dict] = {}
+    if args.previous_workspace:
+        previous = load_previous_iteration(args.previous_workspace.resolve())
+
+    benchmark_path = args.benchmark.resolve() if args.benchmark else None
+    if not benchmark_path:
+        default_benchmark = workspace / "benchmark.json"
+        if default_benchmark.exists():
+            benchmark_path = default_benchmark.resolve()
+    benchmark = None
+    if benchmark_path and benchmark_path.exists():
+        try:
+            benchmark = json.loads(read_utf8_text(benchmark_path))
+        except (json.JSONDecodeError, OSError):
+            pass
+
+    evaluation_plan = None
+    if benchmark and isinstance(benchmark.get("metadata"), dict):
+        evaluation_plan = summarize_evaluation_plan(
+            benchmark["metadata"].get("evaluation_plan")
+        )
+
+    if not evaluation_plan and args.eval_plan:
+        try:
+            evaluation_plan = summarize_evaluation_plan(
+                load_structured_data(args.eval_plan.resolve())
+            )
+        except (OSError, ValueError, json.JSONDecodeError):
+            evaluation_plan = None
+
+    if not evaluation_plan and not args.allow_missing_eval_plan:
+        print(
+            "错误：还没找到正式评估计划。"
+            " 先完成前置对齐，并准备好 evals/eval-plan.json，"
+            "再生成 review；如果你只是在兼容旧 benchmark，"
+            "请显式加 --allow-missing-eval-plan。",
+            file=sys.stderr,
+        )
+        sys.exit(1)
+
+    if args.static:
+        html = generate_html(runs, skill_name, previous, benchmark, evaluation_plan)
+        args.static.parent.mkdir(parents=True, exist_ok=True)
+        write_utf8_text(args.static, html)
+        if not args.skip_companion_report:
+            companion_report = default_companion_path(args.static.resolve(), "report.html")
+            try:
+                run_companion_report(
+                    workspace,
+                    skill_name=skill_name,
+                    benchmark_path=benchmark_path,
+                    eval_plan_path=args.eval_plan.resolve() if args.eval_plan else None,
+                    allow_missing_eval_plan=args.allow_missing_eval_plan,
+                    output_path=companion_report,
+                )
+            except RuntimeError as exc:
+                try:
+                    args.static.unlink()
+                except OSError:
+                    pass
+                print(
+                    "错误：review.html 已回滚，因为 companion report.html 生成失败。\n"
+                    + str(exc),
+                    file=sys.stderr,
+                )
+                sys.exit(1)
+        print(f"\n  静态查看页已写入：{args.static}\n")
+        if not args.skip_companion_report:
+            print(f"  companion report 已写入：{default_companion_path(args.static.resolve(), 'report.html')}\n")
+        sys.exit(0)
+
+    # Kill any existing process on the target port
+    port = args.port
+    _kill_port(port)
+    handler = partial(
+        ReviewHandler,
+        workspace,
+        skill_name,
+        feedback_path,
+        previous,
+        benchmark_path,
+        evaluation_plan,
+    )
+    try:
+        server = HTTPServer(("127.0.0.1", port), handler)
+    except OSError:
+        # Port still in use after kill attempt — find a free one
+        server = HTTPServer(("127.0.0.1", 0), handler)
+        port = server.server_address[1]
+
+    url = f"http://localhost:{port}"
+    print(f"\n  评测查看器")
+    print(f"  ─────────────────────────────────")
+    print(f"  地址：     {url}")
+    print(f"  工作区：   {workspace}")
+    print(f"  反馈文件： {feedback_path}")
+    if previous:
+        print(f"  上一轮：   {args.previous_workspace}（{len(previous)} 个 run）")
+    if benchmark_path:
+        print(f"  基准结果： {benchmark_path}")
+    if evaluation_plan:
+        primary = evaluation_plan.get("primary_direction", {})
+        primary_label = primary.get("label", primary.get("id", ""))
+        if primary_label:
+            print(f"  主方向：   {primary_label}")
+    print(f"\n  按 Ctrl+C 停止。\n")
+
+    webbrowser.open(url)
+
+    try:
+        server.serve_forever()
+    except KeyboardInterrupt:
+        print("\n已停止。")
+        server.server_close()
+
+
+if __name__ == "__main__":
+    main()

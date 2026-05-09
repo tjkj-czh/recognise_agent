@@ -1,0 +1,3 @@
+interface:
+  display_name: "Imagery Cesium Overlay"
+  short_description: "封装影像上传/解析、Cesium叠加预览与分割结果获取的可复用技能接口"

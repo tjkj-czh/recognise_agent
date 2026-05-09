@@ -1,0 +1,78 @@
+{
+  "version": "0.1.0",
+  "last_updated": "2026-05-08",
+  "skills": [
+    {
+      "name": "remote-sensing-change-detection",
+      "type": "core",
+      "path": "core/remote-sensing-change-detection",
+      "version": "0.0.0",
+      "status": "planned",
+      "description": "基于前后两期遥感影像，利用 AI 模型检测土地利用变化图斑"
+    },
+    {
+      "name": "land-supply-data-query",
+      "type": "core",
+      "path": "core/land-supply-data-query",
+      "version": "0.0.0",
+      "status": "planned",
+      "description": "查询供地公告、地块边界、供地时间等数据"
+    },
+    {
+      "name": "report-generation",
+      "type": "core",
+      "path": "core/report-generation",
+      "version": "0.0.0",
+      "status": "planned",
+      "description": "根据变化检测结果自动生成监测报告"
+    },
+    {
+      "name": "monitoring-orchestrator",
+      "type": "agent",
+      "path": "agents/monitoring-orchestrator",
+      "version": "0.0.0",
+      "status": "planned",
+      "description": "编排监测任务全流程：意图理解 → 数据获取 → 变化检测 → 结果展示"
+    },
+    {
+      "name": "report-orchestrator",
+      "type": "agent",
+      "path": "agents/report-orchestrator",
+      "version": "0.0.0",
+      "status": "planned",
+      "description": "编排报告生成流程：数据汇总 → 模板渲染 → 格式转换"
+    },
+    {
+      "name": "geocoding",
+      "type": "tool",
+      "path": "tools/geocoding",
+      "version": "0.0.0",
+      "status": "planned",
+      "description": "地理编码与逆地理编码服务"
+    },
+    {
+      "name": "image-tile-fetcher",
+      "type": "tool",
+      "path": "tools/image-tile-fetcher",
+      "version": "0.0.0",
+      "status": "planned",
+      "description": "从影像源服务获取瓦片数据并本地缓存"
+    },
+    {
+      "name": "vector-db-query",
+      "type": "tool",
+      "path": "tools/vector-db-query",
+      "version": "0.0.0",
+      "status": "planned",
+      "description": "向量数据库语义检索"
+    },
+    {
+      "name": "skill-creator",
+      "type": "dev",
+      "path": "skill-creator",
+      "version": "1.5.9",
+      "status": "active",
+      "description": "Skill 脚手架创建、重构、评估、打包与优化工具（DazhuangSkill-Creator）"
+    }
+  ]
+}
