@@ -1,0 +1,12 @@
+pipeline:
+  base_url: "http://127.0.0.1:5000"
+  tile_size: 448
+  overlap: 90
+  imagery_poll_interval_seconds: 1.5
+  imagery_poll_timeout_seconds: 300
+  task_poll_interval_seconds: 2.0
+  task_poll_timeout_seconds: 1800
+
+evaluation:
+  trigger_eval_set: "evals/trigger-eval-set.json"
+  smoke_timeout_seconds: 2400

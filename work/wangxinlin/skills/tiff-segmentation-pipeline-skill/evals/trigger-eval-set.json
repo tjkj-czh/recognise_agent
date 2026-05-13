@@ -1,0 +1,7 @@
+[
+  {"query": "帮我把这张tiff上传后切片并跑识别，最后把矢量层画出来", "should_trigger": true},
+  {"query": "任务已经success了，但地图没显示，帮我查vectors.geojson和前端渲染", "should_trigger": true},
+  {"query": "我想跑falcon分割任务并轮询直到结束", "should_trigger": true},
+  {"query": "帮我写一个通用的冒泡排序", "should_trigger": false},
+  {"query": "把这个markdown排版得更好看", "should_trigger": false}
+]

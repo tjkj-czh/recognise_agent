@@ -1,0 +1,24 @@
+{
+  "tile_size": 448,
+  "num_tiles_x": 1,
+  "num_tiles_y": 1,
+  "total_tiles": 1,
+  "image_width": 411,
+  "image_height": 411,
+  "crs": "GEOGCS[\"unknown\",DATUM[\"unnamed\",SPHEROID[\"unretrievable - using WGS84\",6378137,298.257223563]],PRIMEM[\"Greenwich\",0],UNIT[\"degree\",0.0174532925199433,AUTHORITY[\"EPSG\",\"9122\"]],AXIS[\"Latitude\",NORTH],AXIS[\"Longitude\",EAST]]",
+  "tiles_dir": "D:\\28期种子班遥感数据\\智能体组\\recognise_agent\\work\\wangxinlin\\compliance_agent\\web\\tiles\\3e3838fc-9fc",
+  "tiles": [
+    {
+      "x": 0,
+      "y": 0,
+      "width": 411,
+      "height": 411,
+      "bbox": [
+        120.051,
+        30.255999541232754,
+        120.05400045876725,
+        30.259
+      ]
+    }
+  ]
+}

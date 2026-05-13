@@ -127,7 +127,7 @@ body { font-family: "Microsoft YaHei", "PingFang SC", sans-serif; background: #0
 /* 对话文本框 */
 .chat-input-area { padding: 8px 16px; }
 .chat-textarea {
-  width: 100%; min-height: 140px; padding: 12px;
+  width: 100%; min-height: 98px; padding: 12px;
   border: 1px solid rgba(126,200,240,0.2); border-radius: 8px;
   font-size: 13px; font-family: "Consolas", "Microsoft YaHei", monospace;
   background: rgba(126,200,240,0.06); color: #c8e4f8;
@@ -207,11 +207,11 @@ body { font-family: "Microsoft YaHei", "PingFang SC", sans-serif; background: #0
   padding: 12px 16px; background: rgba(126,200,240,0.06); border-bottom: 1px solid rgba(126,200,240,0.1);
 }
 .result-header .parcel-id { font-size: 15px; font-weight: 700; color: #7ec8f0; }
-.result-header .parcel-meta { font-size: 12px; color: rgba(126,200,240,0.5); margin-top: 4px; }
+.result-header .parcel-meta { font-size: 13px; color: rgba(126,200,240,0.5); margin-top: 4px; }
 
 .risk-badge {
   display: inline-block; padding: 2px 10px; border-radius: 10px;
-  font-size: 12px; font-weight: 600; color: #fff; margin-top: 6px;
+  font-size: 13px; font-weight: 600; color: #fff; margin-top: 6px;
 }
 .risk-badge-一般关注   { background: #4CAF50; }
 .risk-badge-重点关注   { background: #FF9800; }
@@ -241,10 +241,10 @@ body { font-family: "Microsoft YaHei", "PingFang SC", sans-serif; background: #0
 }
 .review-card .review-priority.high { background: #E57373; }
 .review-card .review-priority.medium { background: #FFB74D; }
-.review-card .review-reason { font-size: 11px; color: rgba(126,200,240,0.4); margin-top: 4px; }
+.review-card .review-reason { font-size: 13px; color: rgba(126,200,240,0.4); margin-top: 4px; }
 
 .summary-text { font-size: 13px; line-height: 1.6; color: #c8e4f8; }
-.generated-at { font-size: 11px; color: rgba(126,200,240,0.35); padding: 8px 16px; }
+.generated-at { font-size: 13px; color: rgba(126,200,240,0.35); padding: 8px 16px; }
 
 /* 地类信息卡片 */
 .land-type-info { padding: 16px; }
@@ -273,36 +273,24 @@ body { font-family: "Microsoft YaHei", "PingFang SC", sans-serif; background: #0
 
 /* 地图控件容器 */
 .map-controls {
-  position: absolute; top: 12px; left: 12px; z-index: 10;
-  display: flex; flex-direction: column; gap: 8px;
-}
-.map-btn-row {
-  display: flex; gap: 8px;
+  position: absolute; top: 12px; right: 12px; z-index: 10;
+  display: flex; flex-direction: column; gap: 6px;
+  align-items: flex-end;
 }
 
-/* 地图控件按钮 */
-.back-to-space-btn,
-.reset-north-btn {
-  padding: 8px 16px; background: rgba(10,30,56,0.85); color: #7ec8f0;
-  font-size: 13px; font-weight: 600; border-radius: 6px; cursor: pointer;
-  border: 1px solid rgba(126,200,240,0.25); font-family: inherit; transition: background 0.2s; user-select: none;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.25);
-  white-space: nowrap;
+/* 地图控件按钮 - 独立圆角方形 */
+.map-ctrl-btn {
+  width: 52px; height: 36px;
+  display: flex; align-items: center; justify-content: center;
+  background: rgba(10,30,56,0.88); color: #7ec8f0;
+  font-size: 12px; font-weight: 600; border-radius: 8px; cursor: pointer;
+  border: 1px solid rgba(126,200,240,0.25); font-family: inherit;
+  transition: all 0.2s; user-select: none; white-space: nowrap;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.3);
 }
-.back-to-space-btn:hover,
-.reset-north-btn:hover { background: rgba(13,40,68,0.95); }
+.map-ctrl-btn:hover { background: rgba(13,40,68,0.95); border-color: rgba(126,200,240,0.5); }
+.map-ctrl-btn.active { color: #fff; background: rgba(126,200,240,0.2); border-color: #7ec8f0; }
 
-/* 视图模式切换 */
-.view-mode-toggle {
-  display: flex; background: rgba(10,30,56,0.85);
-  border-radius: 6px; overflow: hidden;
-  border: 1px solid rgba(126,200,240,0.2);
-  box-shadow: 0 2px 8px rgba(0,0,0,0.25);
-}
-.view-mode-btn {
-  padding: 8px 14px; font-size: 12px; font-weight: 600;
-  font-family: inherit; border: none; background: transparent;
-  color: rgba(126,200,240,0.45); cursor: pointer; transition: all 0.2s;
-}
-.view-mode-btn:hover { color: rgba(126,200,240,0.8); background: rgba(126,200,240,0.08); }
-.view-mode-btn.active { color: #7ec8f0; background: rgba(126,200,240,0.12); }
+/* 兼容旧样式，逐步废弃 */
+.map-btn-row { display: none; }
+.view-mode-toggle { display: none; }
